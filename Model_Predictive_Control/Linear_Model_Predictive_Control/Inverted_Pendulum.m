@@ -66,11 +66,11 @@ while time_curr <= time
     
     % solve mac
     tic;
-    uk(current_step)= mpc(xTrue(:, current_step - 1), system, params_mpc);
+    uk(:, current_step)= mpc(xTrue(:, current_step - 1), system, params_mpc);
     solvetime(1, current_step - 1) = toc;
     
     % update state
-    xTrue(:, current_step) = system.A * xTrue(:, current_step - 1) + system.B * uk(current_step);
+    xTrue(:, current_step) = system.A * xTrue(:, current_step - 1) + system.B * uk(:, current_step);
 end
 
 %% solve average time
