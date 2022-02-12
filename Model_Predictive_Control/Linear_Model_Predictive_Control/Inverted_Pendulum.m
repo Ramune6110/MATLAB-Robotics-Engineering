@@ -66,34 +66,32 @@ while time_curr <= time
     
     % solve mac
     tic;
-    [~, uk(current_step)] = mpc(xTrue(:, current_step - 1), system, params_mpc);
+    uk(current_step)= mpc(xTrue(:, current_step - 1), system, params_mpc);
     solvetime(1, current_step - 1) = toc;
     
     % update state
     xTrue(:, current_step) = system.A * xTrue(:, current_step - 1) + system.B * uk(current_step);
 end
 
-% solve average time
+%% solve average time
 avg_time = sum(solvetime) / current_step;
 disp(avg_time);
 
 drow_figure(xTrue, uk, current_step);
 
 %% model predictive control
-function [xopt, uopt] = mpc(xk, system, params_mpc)
+function uopt = mpc(xTrue, system, params_mpc)
     % Solve MPC
-    [feas, x, u, ~] = solve_mpc(xk, system, params_mpc);
+    [feas, ~, u, ~] = solve_mpc(xTrue, system, params_mpc);
     if ~feas
-        xopt = [];
         uopt = [];
         return
     else
-        xopt = x(:,2);
         uopt = u(:,1);
     end
 end
       
-function [feas, xopt, uopt, Jopt] = solve_mpc(xk, system, params)
+function [feas, xopt, uopt, Jopt] = solve_mpc(xTrue, system, params)
     % extract variables
     N = params.N;
     % define variables and cost
@@ -103,7 +101,7 @@ function [feas, xopt, uopt, Jopt] = solve_mpc(xk, system, params)
     cost = 0;
     
     % initial constraint
-    constraints = [constraints; x(:,1) == xk];
+    constraints = [constraints; x(:,1) == xTrue];
     % add constraints and costs
     for i = 1:N
         constraints = [constraints;
