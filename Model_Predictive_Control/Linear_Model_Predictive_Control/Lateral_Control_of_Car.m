@@ -3,7 +3,8 @@ close all;
 clc;
 
 %% Ipopt solver path
-%addpath('C:\Users\ardui\Desktop\MATLAB_MK_2021\Ipopt');
+dir = pwd;
+addpath(fullfile(dir,'Ipopt'))
 
 %% Setup and Parameters
 x0 = [0.0; 2.0]; % Initial state of the inverted pendulum

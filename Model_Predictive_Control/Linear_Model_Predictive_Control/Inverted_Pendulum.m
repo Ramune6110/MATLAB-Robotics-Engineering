@@ -3,7 +3,8 @@ close all;
 clc;
 
 %% Ipopt solver path
-%addpath('C:\Users\ardui\Desktop\MATLAB_MK_2021\Ipopt');
+dir = pwd;
+addpath(fullfile(dir,'Ipopt'))
 
 %% Setup and Parameters
 x0 = [-0.02; 0.0; 0.1; 0.0]; % Initial state of the inverted pendulum
@@ -12,10 +13,10 @@ dt = 0.1; % sample time
 nx = 4;   % Number of states
 nu = 1;   % Number of input
 
-P = 30 * eye(nx);
-Q = diag([1.0, 1.0, 1.0, 1.0]);
-R = 0.01;
-N = 10;  % Predictive Horizon
+P = 30 * eye(nx);               % Termination cost weight matrix
+Q = diag([1.0, 1.0, 1.0, 1.0]); % Weight matrix of state quantities
+R = 0.01;                       % Weight matrix of input quantities
+N = 10;                         % Predictive Horizon
 
 % Range of states and inputs
 xmin = [-5; -5; -5; -5];
