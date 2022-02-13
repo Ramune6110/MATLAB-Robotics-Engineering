@@ -30,7 +30,9 @@ x_target = [6.0; 1.0; 0.0; 0.0; 0.0; 0.0];
 
 % Obstacle
 obs.pos = [3.0; 0.0];
-obs.r = 1.0;
+obs.own_vehicle_diameter = 0.5; % [m]
+obs.obstacle_diameter    = 0.5; % [m]
+obs.r = obs.own_vehicle_diameter + obs.obstacle_diameter;
 
 %% Linear Car models
 M = 1500;     % [kg]
@@ -187,25 +189,37 @@ function drow_figure(xlog, ulog, obs, x_target, current_step)
     yline(-5.0, '--b', 'LineWidth', 2.0);
     
     figure(2)
+    % plot trajectory
     plot(xlog(1,:), xlog(2,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     hold on;
     grid on;
     axis equal;
     % plot initial position
-    plot(xlog(1, 1), xlog(1, 2), 'db', 'LineWidth', 1);
+    plot(xlog(1, 1), xlog(1, 2), 'dm', 'LineWidth', 2);
     % plot target position
-    plot(x_target(1), x_target(2), 'dg', 'LineWidth', 1);
+    plot(x_target(1), x_target(2), 'dg', 'LineWidth', 2);
     xlabel('X[m]','interpreter','latex','FontSize',10);
     ylabel('Y[m]','interpreter','latex','FontSize',10);
     % plot obstacle
     pos = obs.pos;
-    r = obs.r;
+    r = obs.obstacle_diameter;
     th = linspace(0,2*pi*100);
     x = cos(th); 
     y = sin(th);
     plot(pos(1) + r*x, pos(2) + r*y, 'r', 'LineWidth', 2);
     plot(pos(1), pos(2), 'r', 'MarkerSize', 5, 'LineWidth', 2);
+    % plot vegicle
+    for i = 1:current_step
+        r_vegicle = obs.own_vehicle_diameter;
+        th = linspace(0,2*pi*100);
+        x = cos(th); 
+        y = sin(th);
+        X = xlog(1,i);
+        Y = xlog(2,i);
+        plot(X + r_vegicle * x, Y + r_vegicle * y, 'b','LineWidth', 2);
+        hold on;
+    end
     
     legend('Motion trajectory','Initial position', 'Target position','Obstacle', 'Location','southeast',...
            'interpreter','latex','FontSize',10.0);
