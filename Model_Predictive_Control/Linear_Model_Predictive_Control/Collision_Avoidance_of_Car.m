@@ -220,6 +220,9 @@ function drow_figure(xlog, ulog, obs, x_target, current_step)
         plot(X + r_vegicle * x, Y + r_vegicle * y, 'b','LineWidth', 2);
         hold on;
     end
+    yline(0.5, '--k', 'LineWidth', 2.0);
+    yline(2.0, 'k', 'LineWidth', 4.0);
+    yline(-1.0, 'k', 'LineWidth', 4.0);
     
     legend('Motion trajectory','Initial position', 'Target position','Obstacle', 'Location','southeast',...
            'interpreter','latex','FontSize',10.0);
