@@ -96,7 +96,6 @@ while time_curr <= time
     
     % solve mac
     tic;
-    %mpc(xTrue(:, current_step - 1), system, params_mpc);
     uk(:, current_step) = mpc(xTrue(:, current_step - 1), system, obs, params_mpc);
     solvetime(1, current_step - 1) = toc;
     
