@@ -38,14 +38,6 @@ Kf = 19000;   % [N/rad]
 Kr = 33000;   % [N/rad]
 Vx = 20;      % [m/s]
 
-% % Constants
-% M  = 1500;%
-% I  = 3000;%
-% Kf = 19000;%
-% Kr = 33000;%
-% lf = 1.2;%
-% lr = 1.6;%
-
 system.dt = dt;
 system.nx = nx;
 system.ny = ny;
@@ -226,19 +218,15 @@ function uopt = mpc(xTrue_aug, system, params_mpc, ref)
     % Cost function in quadprog: min(du)*1/2*du'Hdb*du+f'du
     ft = [xTrue_aug', ref'] * Fdbt;
 
-    % Hdb must be positive definite for the problem to have finite minimum.
-
     % Call the solver (quadprog)
-    options = optimset('Display', 'off');
-    lb = -ones(1, N) * pi / 60;
-    ub = ones(1, N) * pi / 60;
-    
-    % quadprog:https://jp.mathworks.com/help/optim/ug/quadprog.html
-    A = [];
-    b = [];
+    A   = [];
+    b   = [];
     Aeq = [];
     beq = [];
-    x0 = [];
+    lb  = -ones(1, N) * pi / 60;
+    ub  = ones(1, N) * pi / 60;
+    x0  = [];
+    options = optimset('Display', 'off');
     [du, ~] = quadprog(Hdb,ft,A,b,Aeq,beq,lb,ub,x0,options);
     uopt = du(1);
 end
