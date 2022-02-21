@@ -2,16 +2,35 @@ clear;
 close all;
 clc;
 
+%% Ipopt solver path
+dir = pwd;
+addpath(fullfile(dir,'Ipopt'))
+
+%% Choice the type of trajectory
+while true
+    model = input('Please choose the type of trajectory (1 = Lane change, 2 = Circle): ');
+    switch model
+        case 1
+            trajectory_type = 'Lane change';
+            break;
+        case 2
+            trajectory_type = 'Circle';
+            break;
+        otherwise
+            disp('No System!');
+    end
+end
+
 %% Setup and Parameters
 dt = 0.1; % sample time
 nx = 4;   % Number of states
 ny = 2;   % Number of ovservation
 nu = 1;   % Number of input
 
-S = diag([10.0, 1.0]);                    % Termination cost weight matrix
+S = diag([10.0, 1.0]); % Termination cost weight matrix
 Q = diag([10.0, 1.0]); % Weight matrix of state quantities
-R = 30.0;                     % Weight matrix of input quantities
-N = 15;                                   % Predictive Horizon
+R = 30.0;              % Weight matrix of input quantities
+N = 15;                % Predictive Horizon
 
 %% Linear Car models (Lateral Vehicle Dynamics)
 M = 1500;     % [kg]
@@ -22,14 +41,6 @@ l = lf + lr;  % [m]
 Kf = 19000;   % [N/rad]
 Kr = 33000;   % [N/rad]
 Vx = 20;      % [m/s]
-
-% % Constants
-% M  = 1500;%
-% I  = 3000;%
-% Kf = 19000;%
-% Kr = 33000;%
-% lf = 1.2;%
-% lr = 1.6;%
 
 system.dt = dt;
 system.nx = nx;
@@ -93,22 +104,26 @@ system.lf = lf;
 system.lr = lr;
 
 %% Load the trajectory
-t = 0:dt:10.0; % Use 7 second for lane change
-[x_ref, y_ref, psi_ref] = trajectory_generator(t, Vx);    
+if strcmp(trajectory_type, 'Lane change')
+    t = 0:dt:10.0;
+elseif strcmp(trajectory_type, 'Circle')  
+    t = 0:dt:80.0;
+end
+[x_ref, y_ref, psi_ref] = trajectory_generator(t, Vx, trajectory_type);    
 
 sim_length = length(t); % Number of control loop iterations
 
-refSignals = zeros(length(x_ref(:, 2)) * ny, 1);
+refSignals = zeros(length(x_ref(:, 1)) * ny, 1);
 
 k = 1;
 for i = 1:ny:length(refSignals)
-    refSignals(i)     = psi_ref(k, 2);
-    refSignals(i + 1) = y_ref(k, 2);
+    refSignals(i)     = psi_ref(k, 1);
+    refSignals(i + 1) = y_ref(k, 1);
     k = k + 1;
 end
 
 % initial state
-x0 = [0.0; psi_ref(1, 2); 0.0; y_ref(1, 2)]; % Initial state of Lateral Vehicle Dynamics
+x0 = [0.0; psi_ref(1, 1); 0.0; y_ref(1, 1)]; % Initial state of Lateral Vehicle Dynamics
 
 %% MPC parameters
 params_mpc.Q = Q;
@@ -143,6 +158,7 @@ for i = 1:sim_length-15
     tic;
     du = mpc(xTrue_aug, system, params_mpc, ref);
     solvetime(1, current_step - 1) = toc;
+    
     % add du input
     uk(:, current_step) = uk(:, current_step - 1) + du;
     
@@ -156,9 +172,58 @@ end
 avg_time = sum(solvetime) / current_step;
 disp(avg_time);
 
-drow_figure(xTrue, uk, x_ref, y_ref, current_step);
+drow_figure(xTrue, uk, x_ref, y_ref, current_step, trajectory_type);
 
 %% model predictive control
+%% model predictive control
+function uopt = mpc(xTrue_aug, system, params_mpc, ref)
+    % Solve MPC
+    [feas, ~, u, ~] = solve_mpc(xTrue_aug, system, params, ref);
+    if ~feas
+        uopt = [];
+        return
+    else
+        uopt = u(:, 1);
+    end
+end
+      
+function [feas, xopt, uopt, Jopt] = solve_mpc(xTrue_aug, system, params, ref)
+    % extract variables
+    N = params.N;
+    % define variables and cost
+    x = sdpvar(system.nx + system.nu, N+1);
+    u = sdpvar(system.nu, N);
+    constraints = [];
+    cost = 0;
+    
+    % initial constraint
+    constraints = [constraints; x(:,1) == xTrue_aug];
+    % add constraints and costs
+    for i = 1:N
+        constraints = [constraints;
+%             system.xl <= x(:,i) <= system.xu;
+%             system.ul <= u(:,i) <= system.uu
+            x(:,i+1) == system.A_aug * x(:,i) + system.B_aug * u(:,i)];
+        cost = cost + (x(:,i) - system.target)' * params.Q * (x(:,i) - system.target) + u(:,i)' * params.R * u(:,i);
+    end
+    % add terminal cost
+    cost = cost + (x(:,N+1) - system.target)' * params.P * (x(:,N+1) - system.target);
+    ops = sdpsettings('solver','ipopt','verbose',0);
+    % solve optimization
+    diagnostics = optimize(constraints, cost, ops);
+    if diagnostics.problem == 0
+        feas = true;
+        xopt = value(x);
+        uopt = value(u);
+        Jopt = value(cost);
+    else
+        feas = false;
+        xopt = [];
+        uopt = [];
+        Jopt = [];
+    end
+end
+
 function uopt = mpc(xTrue_aug, system, params_mpc, ref)
     A_aug = system.A_aug;
     B_aug = system.B_aug;
@@ -206,41 +271,31 @@ function uopt = mpc(xTrue_aug, system, params_mpc, ref)
     % Cost function in quadprog: min(du)*1/2*du'Hdb*du+f'du
     ft = [xTrue_aug', ref'] * Fdbt;
 
-    % Hdb must be positive definite for the problem to have finite minimum.
-
     % Call the solver (quadprog)
-    options = optimset('Display', 'off');
-    lb = -ones(1, N) * pi / 60;
-    ub = ones(1, N) * pi / 60;
-    
-    % quadprog:https://jp.mathworks.com/help/optim/ug/quadprog.html
-    A = [];
-    b = [];
+    A   = [];
+    b   = [];
     Aeq = [];
     beq = [];
-    x0 = [];
+    lb  = -ones(1, N) * pi / 60;
+    ub  = ones(1, N) * pi / 60;
+    x0  = [];
+    options = optimset('Display', 'off');
     [du, ~] = quadprog(Hdb,ft,A,b,Aeq,beq,lb,ub,x0,options);
     uopt = du(1);
 end
       
 %% trajectory generator
-function [x_ref, y_ref, psi_ref] = trajectory_generator(t, Vx)
-    x = linspace(0, Vx * t(end), length(t));
-    
-    % Lane change
-    r=5;
-    f=0.025;
-    y=zeros(1,length(t));
-    y(1:100)=x(1:100)+2;
-%     y=r*sin(2*pi*0.1*f.*x)+100;
-    y=r*sin(2*pi*0.5*f.*x)+100;
-    
-%     y = 3 * tanh((t - t(end) / 2));
-    
-    radius = 5
-    for i = 1:t
-        x(1,1) = radius * sin(2 * pi * t / period) #+ self.x_0
-        y(1, 2) = -radius * cos(2 * pi * t / period) ;
+function [x_ref, y_ref, psi_ref] = trajectory_generator(t, Vx, trajectory_type)
+    if strcmp(trajectory_type, 'Lane change')
+        x = linspace(0, Vx * t(end), length(t));
+        y = 3 * tanh((t - t(end) / 2));
+    elseif strcmp(trajectory_type, 'Circle')  
+        radius = 30;
+        period = 1000;
+        for i = 1:length(t)
+            x(1, i) = radius * sin(2 * pi * i / period);
+            y(1, i) = -radius * cos(2 * pi * i / period);
+        end
     end
     
     dx = x(2:end) - x(1:end-1);
@@ -264,9 +319,9 @@ function [x_ref, y_ref, psi_ref] = trajectory_generator(t, Vx)
         end
     end
 
-    x_ref   = [t' x'];
-    y_ref   = [t' y'];
-    psi_ref = [t' psiInt'];
+    x_ref   = x';
+    y_ref   = y';
+    psi_ref = psiInt';
 end
 
 function dx = nonlinear_lateral_car_model(t, xTrue, u, system)
@@ -296,7 +351,7 @@ function dx = nonlinear_lateral_car_model(t, xTrue, u, system)
     dx(4,1) = sin(psi) * Vx + cos(psi) * y_dot;
 end
         
-function drow_figure(xTrue, uk, x_ref, y_ref, current_step)
+function drow_figure(xTrue, uk, x_ref, y_ref, current_step, trajectory_type)
     % Plot simulation
     figure(1)
     plot(0:current_step - 1, uk(1,:), 'ko-',...
@@ -307,32 +362,39 @@ function drow_figure(xTrue, uk, x_ref, y_ref, current_step)
     yline(-pi / 60, '--b', 'LineWidth', 2.0);
    
     figure(2)
-    % plot trajectory
-    plot(x_ref(1: current_step,2),y_ref(1: current_step,2),'--b','LineWidth',2)
-    hold on
-    plot(x_ref(1: current_step,2),xTrue(4, 1:current_step),'r','LineWidth',1)
-    hold on;
-    grid on;
-    axis equal;
-    % plot initial position
-    plot(x_ref(1, 2), y_ref(1, 2), 'db', 'LineWidth', 2);
-    xlabel('X[m]','interpreter','latex','FontSize',10);
-    ylabel('Y[m]','interpreter','latex','FontSize',10);
-    % plot vegicle
-%     for i = 1:current_step
-%         r_vegicle = 0.5;
-%         th = linspace(0,2*pi*100);
-%         x = cos(th); 
-%         y = sin(th);
-%         X = x_ref(i, 2);
-%         Y = xTrue(4, i);
-%         plot(X + r_vegicle * x, Y + r_vegicle * y, 'b','LineWidth', 2);
-%         hold on;
-%     end
-    yline(0.0, '--k', 'LineWidth', 2.0);
-    yline(10.0, 'k', 'LineWidth', 4.0);
-    yline(-10.0, 'k', 'LineWidth', 4.0);
+    if strcmp(trajectory_type, 'Lane change')
+        % plot trajectory
+        plot(x_ref(1: current_step, 1),y_ref(1: current_step, 1),'--b','LineWidth',2)
+        hold on
+        plot(x_ref(1: current_step, 1),xTrue(4, 1:current_step),'r','LineWidth',1)
+        hold on;
+        grid on;
+        axis equal;
+        % plot initial position
+        plot(x_ref(1, 1), y_ref(1, 1), 'db', 'LineWidth', 2);
+        xlabel('X[m]','interpreter','latex','FontSize',10);
+        ylabel('Y[m]','interpreter','latex','FontSize',10);
+        yline(0.0, '--k', 'LineWidth', 2.0);
+        yline(10.0, 'k', 'LineWidth', 4.0);
+        yline(-10.0, 'k', 'LineWidth', 4.0);
+
+        legend('Refernce trajectory','Motion trajectory','Initial position', 'Location','southeast',...
+               'interpreter','latex','FontSize',10.0);
+    elseif strcmp(trajectory_type, 'Circle')  
+        % plot trajectory
+        plot(x_ref(1: current_step, 1),y_ref(1: current_step, 1),'--b','LineWidth',2)
+        hold on
+        plot(x_ref(1: current_step, 1),xTrue(4, 1:current_step),'r','LineWidth',1)
+        hold on;
+        grid on;
+        axis equal;
+        % plot initial position
+        plot(x_ref(1, 1), y_ref(1, 1), 'db', 'LineWidth', 2);
+        xlabel('X[m]','interpreter','latex','FontSize',10);
+        ylabel('Y[m]','interpreter','latex','FontSize',10);
+
+        legend('Refernce trajectory','Motion trajectory','Initial position', 'Location','southeast',...
+               'interpreter','latex','FontSize',10.0);
+    end
     
-    legend('Refernce trajectory','Motion trajectory','Initial position', 'Location','southeast',...
-           'interpreter','latex','FontSize',10.0);
 end

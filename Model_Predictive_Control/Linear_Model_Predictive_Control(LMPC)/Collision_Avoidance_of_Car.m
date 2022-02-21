@@ -6,6 +6,9 @@ clc;
 dir = pwd;
 addpath(fullfile(dir,'Ipopt'))
 
+% Ipopt
+addpath('C:\Users\ardui\Desktop\MATLAB_MK_2021\Ipopt');
+
 %% Setup and Parameters
 x0 = [0.0; 0.0; 0.0; 0.0; 0.0; 0.0]; % Initial state of the inverted pendulum
 
