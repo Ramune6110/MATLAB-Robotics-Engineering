@@ -32,6 +32,10 @@ Q = diag([10.0, 1.0]); % Weight matrix of state quantities
 R = 30.0;              % Weight matrix of input quantities
 N = 15;                % Predictive Horizon
 
+% Range of inputs
+umin = -pi / 60;
+umax = pi / 60;
+
 %% Linear Car models (Lateral Vehicle Dynamics)
 M = 1500;     % [kg]
 I = 3000;     % [kgm^2]
@@ -46,26 +50,6 @@ system.dt = dt;
 system.nx = nx;
 system.ny = ny;
 system.nu = nu;
-
-% A21 = -2 * (Kf + Kr) / (M * Vx);
-% A22 = -Vx - 2 * (Kf * lf - Kr * lr) / (M * Vx);
-% A42 = -2 * (lf * Kf - lr * Kr) / (I * Vx);
-% A44 = -2 * (lf^2 * Kf + lr^2 * Kr) / (I * Vx);
-% 
-% system.A = eye(nx) + [0.0, 1.0, 0.0, 0.0;
-%                       0.0, A21, 0.0, A22;
-%                       0.0, 0.0, 0.0, 1.0;
-%                       0.0, A42, 0.0, A44] .* dt;
-% 
-% B21 = 2 * Kf / M;
-% B41 = 2 * Kf * lf / I;
-% system.B = [0.0;
-%             B21;
-%             0.0;
-%             B41] .* dt;
-%             
-% system.C = [1.0, 0.0, 0.0, 0.0;
-%             0.0, 0.0, 1.0, 0.0];
         
 % states = [y_dot, psi, psi_dot, Y];
 % Vehicle Dynamics and Control (2nd edition) by Rajesh Rajamani. They are in Chapter 2.3. 
@@ -102,6 +86,10 @@ system.Kf = Kf;
 system.Kr = Kr;
 system.lf = lf;
 system.lr = lr;
+
+% input
+system.ul = umin;
+system.uu = umax;
 
 %% Load the trajectory
 if strcmp(trajectory_type, 'Lane change')
@@ -175,8 +163,7 @@ disp(avg_time);
 drow_figure(xTrue, uk, x_ref, y_ref, current_step, trajectory_type);
 
 %% model predictive control
-%% model predictive control
-function uopt = mpc(xTrue_aug, system, params_mpc, ref)
+function uopt = mpc(xTrue_aug, system, params, ref)
     % Solve MPC
     [feas, ~, u, ~] = solve_mpc(xTrue_aug, system, params, ref);
     if ~feas
@@ -195,19 +182,20 @@ function [feas, xopt, uopt, Jopt] = solve_mpc(xTrue_aug, system, params, ref)
     u = sdpvar(system.nu, N);
     constraints = [];
     cost = 0;
+    k = 1;
     
     % initial constraint
     constraints = [constraints; x(:,1) == xTrue_aug];
     % add constraints and costs
-    for i = 1:N
+    for i = 1:N-1
         constraints = [constraints;
-%             system.xl <= x(:,i) <= system.xu;
-%             system.ul <= u(:,i) <= system.uu
+            system.ul <= u(:,i) <= system.uu
             x(:,i+1) == system.A_aug * x(:,i) + system.B_aug * u(:,i)];
-        cost = cost + (x(:,i) - system.target)' * params.Q * (x(:,i) - system.target) + u(:,i)' * params.R * u(:,i);
+        cost = cost + (ref(k:k + 1,1) - system.C_aug * x(:,i+1))' * params.Q * (ref(k:k + 1,1) - system.C_aug * x(:,i+1)) + u(:,i)' * params.R * u(:,i);
+        k = k + system.ny;
     end
     % add terminal cost
-    cost = cost + (x(:,N+1) - system.target)' * params.P * (x(:,N+1) - system.target);
+    cost = cost + (ref(k:k+1,1) - system.C_aug * x(:,N+1))' * params.S * (ref(k:k+1,1) - system.C_aug * x(:,N+1));     
     ops = sdpsettings('solver','ipopt','verbose',0);
     % solve optimization
     diagnostics = optimize(constraints, cost, ops);
@@ -222,66 +210,6 @@ function [feas, xopt, uopt, Jopt] = solve_mpc(xTrue_aug, system, params, ref)
         uopt = [];
         Jopt = [];
     end
-end
-
-function uopt = mpc(xTrue_aug, system, params_mpc, ref)
-    A_aug = system.A_aug;
-    B_aug = system.B_aug;
-    C_aug = system.C_aug;
-    
-    Q = params_mpc.Q;
-    S = params_mpc.S;
-    R = params_mpc.R;
-    N = params_mpc.N;
-    
-    CQC = C_aug' * Q * C_aug;
-    CSC = C_aug' * S * C_aug;
-    QC  = Q * C_aug; 
-    SC  = S * C_aug;
-    
-    Qdb = zeros(length(CQC(:,1))*N,length(CQC(1,:))*N);
-    Tdb = zeros(length(QC(:,1))*N,length(QC(1,:))*N);
-    Rdb = zeros(length(R(:,1))*N,length(R(1,:))*N);
-    Cdb = zeros(length(B_aug(:,1))*N,length(B_aug(1,:))*N);
-    Adc = zeros(length(A_aug(:,1))*N,length(A_aug(1,:)));
-    
-    % Filling in the matrices
-    for i = 1:N
-       if i == N
-           Qdb(1+length(CSC(:,1))*(i-1):length(CSC(:,1))*i,1+length(CSC(1,:))*(i-1):length(CSC(1,:))*i) = CSC;
-           Tdb(1+length(SC(:,1))*(i-1):length(SC(:,1))*i,1+length(SC(1,:))*(i-1):length(SC(1,:))*i) = SC;           
-       else
-           Qdb(1+length(CQC(:,1))*(i-1):length(CQC(:,1))*i,1+length(CQC(1,:))*(i-1):length(CQC(1,:))*i) = CQC;
-           Tdb(1+length(QC(:,1))*(i-1):length(QC(:,1))*i,1+length(QC(1,:))*(i-1):length(QC(1,:))*i) = QC;
-       end
-       
-       Rdb(1+length(R(:,1))*(i-1):length(R(:,1))*i,1+length(R(1,:))*(i-1):length(R(1,:))*i) = R;
-       
-       for j = 1:N
-           if j<=i
-               Cdb(1+length(B_aug(:,1))*(i-1):length(B_aug(:,1))*i,1+length(B_aug(1,:))*(j-1):length(B_aug(1,:))*j) = A_aug^(i-j)*B_aug;
-           end
-       end
-       Adc(1+length(A_aug(:,1))*(i-1):length(A_aug(:,1))*i,1:length(A_aug(1,:))) = A_aug^(i);
-    end
-    Hdb  = Cdb' * Qdb * Cdb + Rdb;
-    Fdbt = [Adc' * Qdb * Cdb; -Tdb * Cdb];
-    
-    % Calling the optimizer (quadprog)
-    % Cost function in quadprog: min(du)*1/2*du'Hdb*du+f'du
-    ft = [xTrue_aug', ref'] * Fdbt;
-
-    % Call the solver (quadprog)
-    A   = [];
-    b   = [];
-    Aeq = [];
-    beq = [];
-    lb  = -ones(1, N) * pi / 60;
-    ub  = ones(1, N) * pi / 60;
-    x0  = [];
-    options = optimset('Display', 'off');
-    [du, ~] = quadprog(Hdb,ft,A,b,Aeq,beq,lb,ub,x0,options);
-    uopt = du(1);
 end
       
 %% trajectory generator
@@ -396,5 +324,4 @@ function drow_figure(xTrue, uk, x_ref, y_ref, current_step, trajectory_type)
         legend('Refernce trajectory','Motion trajectory','Initial position', 'Location','southeast',...
                'interpreter','latex','FontSize',10.0);
     end
-    
 end

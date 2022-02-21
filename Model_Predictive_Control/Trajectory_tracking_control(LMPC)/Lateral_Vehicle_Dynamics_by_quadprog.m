@@ -28,6 +28,10 @@ Q = diag([10.0, 1.0]); % Weight matrix of state quantities
 R = 30.0;              % Weight matrix of input quantities
 N = 15;                % Predictive Horizon
 
+% Range of inputs
+umin = -pi / 60;
+umax = pi / 60;
+
 %% Linear Car models (Lateral Vehicle Dynamics)
 M = 1500;     % [kg]
 I = 3000;     % [kgm^2]
@@ -98,6 +102,10 @@ system.Kf = Kf;
 system.Kr = Kr;
 system.lf = lf;
 system.lr = lr;
+
+% input
+system.ul = umin;
+system.uu = umax;
 
 %% Load the trajectory
 if strcmp(trajectory_type, 'Lane change')
@@ -223,8 +231,8 @@ function uopt = mpc(xTrue_aug, system, params_mpc, ref)
     b   = [];
     Aeq = [];
     beq = [];
-    lb  = -ones(1, N) * pi / 60;
-    ub  = ones(1, N) * pi / 60;
+    lb  = ones(1, N) * system.ul;
+    ub  = ones(1, N) * system.uu;
     x0  = [];
     options = optimset('Display', 'off');
     [du, ~] = quadprog(Hdb,ft,A,b,Aeq,beq,lb,ub,x0,options);
@@ -343,5 +351,4 @@ function drow_figure(xTrue, uk, x_ref, y_ref, current_step, trajectory_type)
         legend('Refernce trajectory','Motion trajectory','Initial position', 'Location','southeast',...
                'interpreter','latex','FontSize',10.0);
     end
-    
 end
