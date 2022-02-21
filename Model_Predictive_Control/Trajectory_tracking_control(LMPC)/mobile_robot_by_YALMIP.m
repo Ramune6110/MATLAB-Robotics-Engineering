@@ -35,19 +35,19 @@ system.ul = umin;
 system.uu = umax;
 
 %% Load the trajectory
-t = 0:dt:5.0;
+t = 0:dt:10.0;
 [x_ref, y_ref, psi_ref] = trajectory_generator(t);    
 
 sim_length = length(t); % Number of control loop iterations
 
 refSignals = zeros(length(x_ref(:, 1)) * ny, 1);
 
-k = 1;
+ref_index = 1;
 for i = 1:ny:length(refSignals)
-    refSignals(i)     = x_ref(k, 1);
-    refSignals(i + 1) = y_ref(k, 1);
-    refSignals(i + 2) = psi_ref(k, 1);
-    k = k + 1;
+    refSignals(i)     = x_ref(ref_index, 1);
+    refSignals(i + 1) = y_ref(ref_index, 1);
+    refSignals(i + 2) = psi_ref(ref_index, 1);
+    ref_index = ref_index + 1;
 end
 
 % initial state
@@ -149,7 +149,7 @@ function [feas, xopt, uopt, Jopt] = solve_mpc(xTrue_aug, system, params, ref)
     u = sdpvar(system.nu, N);
     constraints = [];
     cost = 0;
-    k = 1;
+    ref_index = 1;
     
     % initial constraint
     constraints = [constraints; x(:,1) == xTrue_aug];
@@ -158,11 +158,11 @@ function [feas, xopt, uopt, Jopt] = solve_mpc(xTrue_aug, system, params, ref)
         constraints = [constraints;
             system.ul <= u(:,i) <= system.uu
             x(:,i+1) == system.A_aug * x(:,i) + system.B_aug * u(:,i)];
-        cost = cost + (ref(k:k + 2,1) - system.C_aug * x(:,i+1))' * params.Q * (ref(k:k + 2,1) - system.C_aug * x(:,i+1)) + u(:,i)' * params.R * u(:,i);
-        k = k + system.ny;
+        cost = cost + (ref(ref_index:ref_index + 2,1) - system.C_aug * x(:,i+1))' * params.Q * (ref(ref_index:ref_index + 2,1) - system.C_aug * x(:,i+1)) + u(:,i)' * params.R * u(:,i);
+        ref_index = ref_index + system.ny;
     end
     % add terminal cost
-    cost = cost + (ref(k:k + 2,1) - system.C_aug * x(:,N+1))' * params.S * (ref(k:k + 2,1) - system.C_aug * x(:,N+1));     
+    cost = cost + (ref(ref_index:ref_index + 2,1) - system.C_aug * x(:,N+1))' * params.S * (ref(ref_index:ref_index + 2,1) - system.C_aug * x(:,N+1));     
     ops = sdpsettings('solver','ipopt','verbose',0);
     % solve optimization
     diagnostics = optimize(constraints, cost, ops);
@@ -278,7 +278,7 @@ function drow_figure(xTrue, uk, du, x_ref, y_ref, current_step)
     grid on;
     axis equal;
     % plot initial position
-    plot(x_ref(1, 1), y_ref(1, 1), 'db', 'LineWidth', 2);
+    plot(x_ref(1, 1), y_ref(1, 1), 'dg', 'LineWidth', 2);
     xlabel('X[m]','interpreter','latex','FontSize',10);
     ylabel('Y[m]','interpreter','latex','FontSize',10);
 
