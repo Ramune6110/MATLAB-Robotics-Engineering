@@ -2,10 +2,6 @@ clear;
 close all;
 clc;
 
-%% Ipopt solver path
-dir = pwd;
-addpath(fullfile(dir,'Ipopt'))
-
 %% Setup and Parameters
 dt = 0.1; % sample time
 nx = 3;   % Number of states
@@ -130,55 +126,75 @@ disp(avg_time);
 drow_figure(xTrue, uk, du, x_ref, y_ref, current_step);
 
 %% model predictive control
-function uopt = mpc(xTrue_aug, system, params, ref)
-    % Solve MPC
-    [feas, ~, u, ~] = solve_mpc(xTrue_aug, system, params, ref);
-    if ~feas
-        uopt = [];
-        return
-    else
-        uopt = u(:, 1);
-    end
-end
-      
-function [feas, xopt, uopt, Jopt] = solve_mpc(xTrue_aug, system, params, ref)
-    % extract variables
-    N = params.N;
-    % define variables and cost
-    x = sdpvar(system.nx + system.nu, N+1);
-    u = sdpvar(system.nu, N);
-    constraints = [];
-    cost = 0;
-    ref_index = 1;
+%% model predictive control
+function uopt = mpc(xTrue_aug, system, params_mpc, ref)
+    A_aug = system.A_aug;
+    B_aug = system.B_aug;
+    C_aug = system.C_aug;
     
-    % initial constraint
-    constraints = [constraints; x(:,1) == xTrue_aug];
-    % add constraints and costs
-    for i = 1:N-1
-        constraints = [constraints;
-            system.ul <= u(:,i) <= system.uu
-            x(:,i+1) == system.A_aug * x(:,i) + system.B_aug * u(:,i)];
-        cost = cost + (ref(ref_index:ref_index + 2,1) - system.C_aug * x(:,i+1))' * params.Q * (ref(ref_index:ref_index + 2,1) - system.C_aug * x(:,i+1)) + u(:,i)' * params.R * u(:,i);
-        ref_index = ref_index + system.ny;
+    Q = params_mpc.Q;
+    S = params_mpc.S;
+    R = params_mpc.R;
+    N = params_mpc.N;
+    
+    CQC = C_aug' * Q * C_aug;
+    CSC = C_aug' * S * C_aug;
+    QC  = Q * C_aug; 
+    SC  = S * C_aug;
+    
+    Qdb = zeros(length(CQC(:,1))*N,length(CQC(1,:))*N);
+    Tdb = zeros(length(QC(:,1))*N,length(QC(1,:))*N);
+    Rdb = zeros(length(R(:,1))*N,length(R(1,:))*N);
+    Cdb = zeros(length(B_aug(:,1))*N,length(B_aug(1,:))*N);
+    Adc = zeros(length(A_aug(:,1))*N,length(A_aug(1,:)));
+    
+    % Filling in the matrices
+    for i = 1:N
+       if i == N
+           Qdb(1+length(CSC(:,1))*(i-1):length(CSC(:,1))*i,1+length(CSC(1,:))*(i-1):length(CSC(1,:))*i) = CSC;
+           Tdb(1+length(SC(:,1))*(i-1):length(SC(:,1))*i,1+length(SC(1,:))*(i-1):length(SC(1,:))*i) = SC;           
+       else
+           Qdb(1+length(CQC(:,1))*(i-1):length(CQC(:,1))*i,1+length(CQC(1,:))*(i-1):length(CQC(1,:))*i) = CQC;
+           Tdb(1+length(QC(:,1))*(i-1):length(QC(:,1))*i,1+length(QC(1,:))*(i-1):length(QC(1,:))*i) = QC;
+       end
+       
+       Rdb(1+length(R(:,1))*(i-1):length(R(:,1))*i,1+length(R(1,:))*(i-1):length(R(1,:))*i) = R;
+       
+       for j = 1:N
+           if j<=i
+               Cdb(1+length(B_aug(:,1))*(i-1):length(B_aug(:,1))*i,1+length(B_aug(1,:))*(j-1):length(B_aug(1,:))*j) = A_aug^(i-j)*B_aug;
+           end
+       end
+       Adc(1+length(A_aug(:,1))*(i-1):length(A_aug(:,1))*i,1:length(A_aug(1,:))) = A_aug^(i);
     end
-    % add terminal cost
-    cost = cost + (ref(ref_index:ref_index + 2,1) - system.C_aug * x(:,N+1))' * params.S * (ref(ref_index:ref_index + 2,1) - system.C_aug * x(:,N+1));     
-    ops = sdpsettings('solver','ipopt','verbose',0);
-    % solve optimization
-    diagnostics = optimize(constraints, cost, ops);
-    if diagnostics.problem == 0
-        feas = true;
-        xopt = value(x);
-        uopt = value(u);
-        Jopt = value(cost);
-    else
-        feas = false;
-        xopt = [];
-        uopt = [];
-        Jopt = [];
+    Hdb  = Cdb' * Qdb * Cdb + Rdb;
+    Fdbt = [Adc' * Qdb * Cdb; -Tdb * Cdb];
+    
+    % Calling the optimizer (quadprog)
+    % Cost function in quadprog: min(du)*1/2*du'Hdb*du+f'du
+    ft = [xTrue_aug', ref'] * Fdbt;
+    
+    umin = ones(system.nu, N);
+    umax = ones(system.nu, N);
+    for i = 1:N
+        umin(:, i) = system.ul;
+        umax(:, i) = system.uu;
     end
+    
+    % Call the solver (quadprog)
+    A   = [];
+    b   = [];
+    Aeq = [];
+    beq = [];
+    lb  = umin;
+    ub  = umax;
+    x0  = [];
+    options = optimset('Display', 'off');
+    [du, ~] = quadprog(Hdb,ft,A,b,Aeq,beq,lb,ub,x0,options);
+    
+    uopt = du(1:system.nu, 1);
 end
-      
+
 %% trajectory generator
 function [x_ref, y_ref, psi_ref] = trajectory_generator(t)
     % Circle
