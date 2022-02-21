@@ -312,27 +312,28 @@ function drow_figure(xTrue, uk, x_ref, y_ref, current_step, trajectory_type)
     plot(0:current_step - 1, uk(1,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('delta [rad]','interpreter','latex','FontSize',10);
+    ylabel('$\delta$ [rad]','interpreter','latex','FontSize',10);
     yline(pi / 60, '--b', 'LineWidth', 2.0);
     yline(-pi / 60, '--b', 'LineWidth', 2.0);
    
     figure(2)
     if strcmp(trajectory_type, 'Lane change')
         % plot trajectory
-        plot(x_ref(1: current_step, 1),y_ref(1: current_step, 1),'--b','LineWidth',2)
+        plot(x_ref(1: current_step, 1),y_ref(1: current_step, 1),'b','LineWidth',2)
         hold on
-        plot(x_ref(1: current_step, 1),xTrue(4, 1:current_step),'r','LineWidth',1)
+        plot(x_ref(1: current_step, 1),xTrue(4, 1:current_step),'r','LineWidth',2)
         hold on;
         grid on;
-        axis equal;
+%         axis equal;
         % plot initial position
-        plot(x_ref(1, 1), y_ref(1, 1), 'db', 'LineWidth', 2);
+        plot(x_ref(1, 1), y_ref(1, 1), 'dg', 'LineWidth', 2);
         xlabel('X[m]','interpreter','latex','FontSize',10);
         ylabel('Y[m]','interpreter','latex','FontSize',10);
         yline(0.0, '--k', 'LineWidth', 2.0);
         yline(10.0, 'k', 'LineWidth', 4.0);
         yline(-10.0, 'k', 'LineWidth', 4.0);
-
+        ylim([-12 12])
+        
         legend('Refernce trajectory','Motion trajectory','Initial position', 'Location','southeast',...
                'interpreter','latex','FontSize',10.0);
     elseif strcmp(trajectory_type, 'Circle')  
