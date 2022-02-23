@@ -189,11 +189,6 @@ function [x_ref, y_ref, psi_ref] = trajectory_generator(t)
         y(1, i) = -radius * cos(2 * pi * i / period);
     end
     
-%     for i = 1:length(t)
-%         x(1, i) = -radius * sin(i);
-%         y(1, i) = radius * sin(i);
-%     end
-    
     dx = x(2:end) - x(1:end-1);
     dy = y(2:end) - y(1:end-1);
 
@@ -289,5 +284,21 @@ function drow_figure(xTrue, uk, du, x_ref, y_ref, current_step)
 
     legend('Refernce trajectory','Motion trajectory','Initial position', 'Location','southeast',...
            'interpreter','latex','FontSize',10.0);
-
+    
+    % plot position error
+    figure(3)
+    Vertical_error = x_ref(1: current_step, 1) - xTrue(1, 1: current_step)';
+    Lateral_error = y_ref(1: current_step, 1) - xTrue(2, 1:current_step)';
+    
+    subplot(2, 1, 1)
+    plot(0:current_step - 1, Vertical_error, 'ko-',...
+        'LineWidth', 1.0, 'MarkerSize', 4);
+    xlabel('Time Step','interpreter','latex','FontSize',10);
+    ylabel('Vertical error [m]','interpreter','latex','FontSize',10);
+    
+    subplot(2, 1, 2)
+    plot(0:current_step - 1, Lateral_error, 'ko-',...
+        'LineWidth', 1.0, 'MarkerSize', 4);
+    xlabel('Time Step','interpreter','latex','FontSize',10);
+    ylabel('Lateral error [m]','interpreter','latex','FontSize',10);
 end

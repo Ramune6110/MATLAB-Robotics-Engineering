@@ -305,5 +305,21 @@ function drow_figure(xTrue, uk, du, x_ref, y_ref, current_step)
 
     legend('Refernce trajectory','Motion trajectory','Initial position', 'Location','southeast',...
            'interpreter','latex','FontSize',10.0);
-
+    
+    % plot position error
+    figure(3)
+    Vertical_error = x_ref(1: current_step, 1) - xTrue(1, 1: current_step)';
+    Lateral_error = y_ref(1: current_step, 1) - xTrue(2, 1:current_step)';
+    
+    subplot(2, 1, 1)
+    plot(0:current_step - 1, Vertical_error, 'ko-',...
+        'LineWidth', 1.0, 'MarkerSize', 4);
+    xlabel('Time Step','interpreter','latex','FontSize',10);
+    ylabel('Vertical error [m]','interpreter','latex','FontSize',10);
+    
+    subplot(2, 1, 2)
+    plot(0:current_step - 1, Lateral_error, 'ko-',...
+        'LineWidth', 1.0, 'MarkerSize', 4);
+    xlabel('Time Step','interpreter','latex','FontSize',10);
+    ylabel('Lateral error [m]','interpreter','latex','FontSize',10);
 end
