@@ -103,11 +103,11 @@ sim_length = length(t); % Number of control loop iterations
 
 refSignals = zeros(length(x_ref(:, 1)) * ny, 1);
 
-k = 1;
+ref_index = 1;
 for i = 1:ny:length(refSignals)
-    refSignals(i)     = psi_ref(k, 1);
-    refSignals(i + 1) = y_ref(k, 1);
-    k = k + 1;
+    refSignals(i)     = psi_ref(ref_index, 1);
+    refSignals(i + 1) = y_ref(ref_index, 1);
+    ref_index = ref_index + 1;
 end
 
 % initial state
@@ -122,9 +122,9 @@ params_mpc.N = N;
 %% main loop
 xTrue(:, 1) = x0;
 uk(:, 1) = 0.0;
-time = 7.0;
+du(:, 1) = 0.0;
 current_step = 1;
-solvetime = zeros(1, time / dt);
+solvetime = zeros(1, sim_length);
 
 ref_sig_num = 1; % for reading reference signals
 for i = 1:sim_length-15
@@ -144,11 +144,11 @@ for i = 1:sim_length-15
     
     % solve mac
     tic;
-    du = mpc(xTrue_aug, system, params_mpc, ref);
+    du(:, current_step) = mpc(xTrue_aug, system, params_mpc, ref);
     solvetime(1, current_step - 1) = toc;
     
     % add du input
-    uk(:, current_step) = uk(:, current_step - 1) + du;
+    uk(:, current_step) = uk(:, current_step - 1) + du(:, current_step);
     
     % update state
     T = dt*i:dt:dt*i+dt;
@@ -160,7 +160,7 @@ end
 avg_time = sum(solvetime) / current_step;
 disp(avg_time);
 
-drow_figure(xTrue, uk, x_ref, y_ref, current_step, trajectory_type);
+drow_figure(xTrue, uk, du, x_ref, y_ref, current_step, trajectory_type);
 
 %% model predictive control
 function uopt = mpc(xTrue_aug, system, params, ref)
@@ -182,7 +182,7 @@ function [feas, xopt, uopt, Jopt] = solve_mpc(xTrue_aug, system, params, ref)
     u = sdpvar(system.nu, N);
     constraints = [];
     cost = 0;
-    k = 1;
+    ref_index = 1;
     
     % initial constraint
     constraints = [constraints; x(:,1) == xTrue_aug];
@@ -191,11 +191,11 @@ function [feas, xopt, uopt, Jopt] = solve_mpc(xTrue_aug, system, params, ref)
         constraints = [constraints;
             system.ul <= u(:,i) <= system.uu
             x(:,i+1) == system.A_aug * x(:,i) + system.B_aug * u(:,i)];
-        cost = cost + (ref(k:k + 1,1) - system.C_aug * x(:,i+1))' * params.Q * (ref(k:k + 1,1) - system.C_aug * x(:,i+1)) + u(:,i)' * params.R * u(:,i);
-        k = k + system.ny;
+        cost = cost + (ref(ref_index:ref_index + 1,1) - system.C_aug * x(:,i+1))' * params.Q * (ref(ref_index:ref_index + 1,1) - system.C_aug * x(:,i+1)) + u(:,i)' * params.R * u(:,i);
+        ref_index = ref_index + system.ny;
     end
     % add terminal cost
-    cost = cost + (ref(k:k+1,1) - system.C_aug * x(:,N+1))' * params.S * (ref(k:k+1,1) - system.C_aug * x(:,N+1));     
+    cost = cost + (ref(ref_index:ref_index+1,1) - system.C_aug * x(:,N+1))' * params.S * (ref(ref_index:ref_index+1,1) - system.C_aug * x(:,N+1));     
     ops = sdpsettings('solver','ipopt','verbose',0);
     % solve optimization
     diagnostics = optimize(constraints, cost, ops);
@@ -279,16 +279,23 @@ function dx = nonlinear_lateral_car_model(t, xTrue, u, system)
     dx(4,1) = sin(psi) * Vx + cos(psi) * y_dot;
 end
         
-function drow_figure(xTrue, uk, x_ref, y_ref, current_step, trajectory_type)
+function drow_figure(xTrue, uk, du, x_ref, y_ref, current_step, trajectory_type)
     % Plot simulation
     figure(1)
+    subplot(2, 1, 1)
+    plot(0:current_step - 1, du(1,:), 'ko-',...
+        'LineWidth', 1.0, 'MarkerSize', 4);
+    xlabel('Time Step','interpreter','latex','FontSize',10);
+    ylabel('$\Delta \delta$ [rad]','interpreter','latex','FontSize',10);
+    yline(pi / 60, '--b', 'LineWidth', 2.0);
+    yline(-pi / 60, '--b', 'LineWidth', 2.0);
+    
+    subplot(2, 1, 2)
     plot(0:current_step - 1, uk(1,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$\delta$ [rad]','interpreter','latex','FontSize',10);
-    yline(pi / 60, '--b', 'LineWidth', 2.0);
-    yline(-pi / 60, '--b', 'LineWidth', 2.0);
-   
+    
     figure(2)
     if strcmp(trajectory_type, 'Lane change')
         % plot trajectory
@@ -297,7 +304,6 @@ function drow_figure(xTrue, uk, x_ref, y_ref, current_step, trajectory_type)
         plot(x_ref(1: current_step, 1),xTrue(4, 1:current_step),'r','LineWidth',2)
         hold on;
         grid on;
-%         axis equal;
         % plot initial position
         plot(x_ref(1, 1), y_ref(1, 1), 'dg', 'LineWidth', 2);
         xlabel('X[m]','interpreter','latex','FontSize',10);
