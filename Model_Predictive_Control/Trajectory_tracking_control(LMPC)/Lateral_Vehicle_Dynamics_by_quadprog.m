@@ -287,7 +287,7 @@ function dx = nonlinear_lateral_car_model(t, xTrue, u, system)
 end
         
 function drow_figure(xTrue, uk, du, x_ref, y_ref, current_step, trajectory_type)
-    % Plot simulation
+    % plot input
     figure(1)
     subplot(2, 1, 1)
     plot(0:current_step - 1, du(1,:), 'ko-',...
@@ -338,4 +338,12 @@ function drow_figure(xTrue, uk, du, x_ref, y_ref, current_step, trajectory_type)
         legend('Refernce trajectory','Motion trajectory','Initial position', 'Location','southeast',...
                'interpreter','latex','FontSize',10.0);
     end
+    
+    % plot lateral error
+    figure(3)
+    Lateral_error = y_ref(1: current_step, 1) - xTrue(4, 1:current_step)';
+    plot(0:current_step - 1, Lateral_error, 'ko-',...
+        'LineWidth', 1.0, 'MarkerSize', 4);
+    xlabel('Time Step','interpreter','latex','FontSize',10);
+    ylabel('Lateral error [m]','interpreter','latex','FontSize',10);
 end
