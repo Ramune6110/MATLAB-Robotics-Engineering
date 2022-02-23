@@ -205,11 +205,6 @@ function [x_ref, y_ref, psi_ref] = trajectory_generator(t)
         y(1, i) = -radius * cos(2 * pi * i / period);
     end
     
-%     for i = 1:length(t)
-%         x(1, i) = -radius * sin(i);
-%         y(1, i) = radius * sin(i);
-%     end
-    
     dx = x(2:end) - x(1:end-1);
     dy = y(2:end) - y(1:end-1);
 
