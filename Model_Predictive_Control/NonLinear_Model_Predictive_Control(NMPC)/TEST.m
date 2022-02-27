@@ -2,65 +2,62 @@ clear;
 close all;
 clc;
 
-%% Setup and Parameters
-dt   = 0.01; % sample time
-nx   = 2;    % Number of states
-nu   = 3;    % Number of input(u1 = Attenuation coefficient, u2 = Dummy input, u3 = Lagrange multiplier)
-nlmd = 2;    % Number of companion variable
+%% システム定義
+sys.a = -1;     % システム変数
+sys.b = -1;     % システム変数
 
-sim_time = 10; % Simulation time [s]
+%% シミュレーション定義
+SimPeriod = 10;                         % シミュレーション時間 (s)
+dSamplingPeriod = 0.01;                 % サンプリング周期 (s)
 
-system.m = 1; %[kg]
-system.k = 1; %[N/m]
-system.a = - system.k / system.m;
-system.b = - 1 / system.m;
+%% C/GMRESのコントローラ定義
+nmpc.tf = 1.0;                          % 予測時間の最終値 (s)
+nmpc.dv = 5;                            % 予測時間の分割数 (-) （評価函数によって評価するポイントの数）
 
-%% NMPC parameters
-params_nmpc.tf = 1.0;             % Final value of prediction time [s]
-params_nmpc.N = 5;                % Number of divisions of the prediction time [-]
+nmpc.x0 = [2;0];                        % コントローラに与える初期状態
+nmpc.u0 = [0.01;0.9;0.03];              % コントローラに与える初期操作量
 
-params_nmpc.x0 = [2;0];           % Initial state
-params_nmpc.u0 = [0.01;0.9;0.03]; % Initial u
+nmpc.sf = [ 1;10 ];                     % 予測時間の最終状態に対する重み（終端コスト）
+nmpc.q = [ 1;10 ];                      % 状態に対する重み（ステージコスト）
+nmpc.r = [ 1;0.01 ];                    % 操作量に対する重み
 
-params_nmpc.sf = [ 1;10 ];        % Termination cost weight matrix
-params_nmpc.q = [ 1;10 ];         % Weight matrix of state quantities
-params_nmpc.r = [ 1;0.01 ];       % Weight matrix of input quantities
+nmpc.umin = -1;                         % 入力上限（下限はゼロに設定している）
+nmpc.umax = 1;                          % 入力上限（下限はゼロに設定している）
 
-params_nmpc.umin = -1;            % upper input limit
-params_nmpc.umax = 1;             % lower input limit
+%% C/GMRESのコントローラ用計算
 
-params_nmpc.len_x   = nx;         % Number of states
-params_nmpc.len_u   = nu;         % Number of input(u1 = Attenuation coefficient, u2 = Dummy input, u3 = Lagrange multiplier)
-params_nmpc.len_lmd = nlmd;       % Number of companion variable
-
-%% Initial value calculation using Newton's method
-lmd0 = dPhidx( params_nmpc.x0, params_nmpc );
+% 初期入力値の計算（Newton法）
+lmd0 = dPhidx( nmpc.x0, nmpc );
+u0 = [1;2;3;]; % Newton法の初期値
 
 for cnt = 1:20
-    params_nmpc.u0 = params_nmpc.u0 - ddHddu(params_nmpc.u0, params_nmpc ) \ dHdu( params_nmpc.x0, params_nmpc.u0, lmd0, system, params_nmpc );
+    nmpc.u0 = nmpc.u0 - ddHddu( nmpc.x0, nmpc.u0, lmd0, sys, nmpc ) \ dHdu( nmpc.x0, nmpc.u0, lmd0, sys, nmpc );
 end
 
-%% main loop
-xTrue(:, 1) = params_nmpc.x0;
-uk(:, 1) = params_nmpc.u0;
-uk_horizon(:, 1) = repmat( params_nmpc.u0, params_nmpc.N, 1 );
+nmpc.len_x = length( nmpc.x0 );     % 状態の数
+nmpc.len_u = length( nmpc.u0 );     % 操作量の数
+nmpc.len_lmd = nmpc.len_x;          % 随伴変数の数
+
+xTrue(:, 1) = [2;0];
+u = u0;
 current_step = 1;
-sim_length = length(1:dt:sim_time);
+sim_length = length(1:dSamplingPeriod:SimPeriod);
 solvetime = zeros(1, sim_length + 1);
 
-for i = 1:dt:sim_time
+%% main loop
+for i = 1:dSamplingPeriod:SimPeriod
     i
     % update time
     current_step = current_step + 1;
     
     % solve nmpc
     tic;
-    [uk(:, current_step), uk_horizon(:, current_step)] = NMPC( xTrue(:, current_step - 1), uk_horizon(:, current_step - 1), system, params_nmpc);
+    u = NMPC( xTrue(:, current_step - 1), sys, nmpc );
     solvetime(1, current_step - 1) = toc;
     
     % update state
-    T = dt*current_step:dt:dt*current_step+dt;
-    [T, x] = ode45(@(t,x) nonlinear_model(x, uk(:, current_step), system), T, xTrue(:, current_step - 1));
+    T = dSamplingPeriod*current_step:dSamplingPeriod:dSamplingPeriod*current_step+dSamplingPeriod;
+    [T, x] = ode45(@(t,x) nonlinear_model(t, x, u(1), sys), T, xTrue(:, current_step - 1));
     xTrue(:, current_step) = x(end,:);
 end
 
@@ -68,108 +65,160 @@ end
 avg_time = sum(solvetime) / current_step;
 disp(avg_time);
 
-drow_figure(xTrue, uk, current_step);
-
-%% NMPC
-function [uk, uk_horizon] = NMPC( x_current, uk_horizon, system, nmpc )
-    for cnt = 1:10
-        uk_horizon = uk_horizon - ( dFdu( x_current, uk_horizon, system, nmpc ) \ F( x_current, uk_horizon, system, nmpc ) );
-    end
-        
-    uk = uk_horizon(1:nmpc.len_u);
-end
+drow_figure(xTrue, u, current_step);
 
 %% Hの入力微分
-function Hu = dHdu( x, u, lmd, system, nmpc )
-    Hu = [system.b * lmd(2) * x(2) + 2 * u(3) * ( u(1) - ( nmpc.umin + nmpc.umax ) / 2 ) + nmpc.r(1) * u(1);
-		  2 * u(2) * u(3) - nmpc.r(2);
-		 ( u(1) - ( nmpc.umin + nmpc.umax ) / 2 )^2 - ( nmpc.umax - nmpc.umin )^2 / 4 + u(2)^2];
+% x        : [ x;dx ]       （位置，速度）
+% u        : [ u;v;mu ]     （操作量，ダミー操作量，ラグランジュ乗数）
+% lmd      : [ lmd1;lmd2 ]  （随伴変数1，随伴変数2）
+% sys      : a              （システム係数）
+% sys      : b              （システム係数）
+% cgmres   : [ r1;r2 ]      （操作量の重み，ダミー操作量の重み）
+% cgmres   : umax           （操作量の最大値）
+
+function Hu = dHdu( x, u, lmd, sys, nmpc )
+    Hu = [ ...
+        sys.b * lmd(2) * x(2) + 2 * u(3) * ( u(1) - ( nmpc.umin + nmpc.umax ) / 2 ) + nmpc.r(1) * u(1);
+		2 * u(2) * u(3) - nmpc.r(2);
+		( u(1) - ( nmpc.umin + nmpc.umax ) / 2 )^2 - ( nmpc.umax - nmpc.umin )^2 / 4 + u(2)^2;
+    ];
 end
 
 %% Hの2階入力微分
-function Huu = ddHddu(u, nmpc )
-    Huu = [2 * u(3) + nmpc.r(1), 0, 2 * ( u(1) - ( nmpc.umin + nmpc.umax ) / 2 );
-	       0, 2 * u(3), 2 * u(2);
-		   2 * ( u(1) - ( nmpc.umin + nmpc.umax ) / 2 ), 2 * u(2), 0];
-end
+% x        : [ x;dx ]       （位置，速度）
+% u        : [ u;v;mu ]     （操作量，ダミー操作量，ラグランジュ乗数）
+% lmd      : [ lmd1;lmd2 ]  （随伴変数1，随伴変数2）
+% sys      : a              （システム係数）
+% sys      : b              （システム係数）
+% cgmres   : [ r1;r2 ]      （操作量の重み，ダミー操作量の重み）
+% cgmres   : umax           （操作量の最大値）
 
-%% Hの状態微分
-function Hx = dHdx( x, u, lmd, system, nmpc )
-    Hx = [nmpc.q(1) * x(1) + system.a * lmd(2);
-		  nmpc.q(2) * x(2) + system.b * lmd(2) * u(1) + lmd(1)];
+function Huu = ddHddu( x, u, lmd, sys, nmpc )
+    Huu = [ ...
+		2 * u(3) + nmpc.r(1), 0, 2 * ( u(1) - ( nmpc.umin + nmpc.umax ) / 2 );
+		0, 2 * u(3), 2 * u(2);
+		2 * ( u(1) - ( nmpc.umin + nmpc.umax ) / 2 ), 2 * u(2), 0;
+	];
 end
 
 %% ヘッセ行列の状態微分
+% x        : [ x;dx ]       （位置，速度）
+% cgmres   : [ sf1;sf2 ]    （時刻Tでの位置の重み，時刻Tでの速度の重み）
+
 function Phix = dPhidx( x, cgmres )
-    Phix = [x(1) * cgmres.sf(1);
-            x(2) * cgmres.sf(2)];
+    Phix = [ x(1) * cgmres.sf(1);x(2) * cgmres.sf(2) ];
+end
+
+%% NMPC
+function MV = NMPC( x_current, sys, nmpc )
+    %#codegen
+    persistent u; % 操作量（前回値）
+
+    if ( isempty( u ) )
+        u = repmat( nmpc.u0, nmpc.dv, 1 );
+    end
+    
+    for cnt = 1:10
+        u = u - ( dFdu( x_current, u, sys, nmpc ) \ CalcF( x_current, u, sys, nmpc ) );
+    end
+        
+    MV = u(1:nmpc.len_u);
+
 end
 
 %% C/GMRESでの函数Fの計算
-function dF = dFdu( x_current, u, system, nmpc )
+function dF = dFdu( x_current, u, sys, nmpc )
 
-    dF = zeros( nmpc.len_u * nmpc.N, nmpc.len_u * nmpc.N );
+    dF = zeros( nmpc.len_u * nmpc.dv, nmpc.len_u * nmpc.dv );
     diff = 0.01;
     
-    for cnt = 1:nmpc.N*nmpc.len_u
+    for cnt = 1:nmpc.dv*nmpc.len_u
         u_buff_p = u;
         u_buff_n = u;
 
         u_buff_p(cnt) = u_buff_p(cnt) + diff;
         u_buff_n(cnt) = u_buff_n(cnt) - diff;
         
-        dF(:,cnt) = ( F( x_current, u_buff_p, system, nmpc ) - F( x_current, u_buff_n, system, nmpc ) ) / ( 2 * diff );
+        dF(:,cnt) = ( CalcF( x_current, u_buff_p, sys, nmpc ) - CalcF( x_current, u_buff_n, sys, nmpc ) ) / ( 2 * diff );
     end
 end
 
 %% C/GMRESでの函数Fの計算
-function ans_F = F( x_current, u, system, nmpc )
-    x = Forward( x_current, u, system, nmpc );
-    lmd = Backward( x, u, system, nmpc );
+function F = CalcF( x_current, u, sys, nmpc )
+    x = Forward( x_current, u, sys, nmpc );
+    lmd = Backward( x, u, sys, nmpc );
 
-    ans_F = zeros( nmpc.len_u * nmpc.N, 1 );
+    F = zeros( nmpc.len_u * nmpc.dv, 1 );
 
-    for cnt = 1:nmpc.N
-        ans_F((1:nmpc.len_u)+nmpc.len_u*(cnt-1)) = dHdu(x((1:nmpc.len_x)+nmpc.len_x*(cnt-1)), ...
+    for cnt = 1:nmpc.dv
+        F((1:nmpc.len_u)+nmpc.len_u*(cnt-1)) = dHdu(x((1:nmpc.len_x)+nmpc.len_x*(cnt-1)), ...
                                                     u((1:nmpc.len_u)+nmpc.len_u*(cnt-1)), ...
-                                                    lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt-1)), system, nmpc );
+                                                    lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt-1)), sys, nmpc );
     end
 end
 
 %% 現在時刻からT秒未来までの状態の予測（Euler近似）
-function x = Forward( x0, u, system, nmpc )
-    dt = nmpc.tf / nmpc.N;
+function x = Forward( x0, u, sys, nmpc )
+    dt = nmpc.tf / nmpc.dv;
     
-    x = zeros( nmpc.len_x * nmpc.N, 1 );
+    x = zeros( nmpc.len_x * nmpc.dv, 1 );
     x(1:nmpc.len_x) = x0;
 
-    for cnt = 1 : nmpc.N-1
+    for cnt = 1 : nmpc.dv-1
        x((1:nmpc.len_x)+nmpc.len_x*(cnt)) = x((1:nmpc.len_x)+nmpc.len_x*(cnt-1)) ...
-                                                + nonlinear_model( x((1:nmpc.len_x)+nmpc.len_x*(cnt-1)), u((1:nmpc.len_u)+nmpc.len_u*(cnt-1)), system ) * dt; 
+                                                + Func( x((1:nmpc.len_x)+nmpc.len_x*(cnt-1)), u((1:nmpc.len_u)+nmpc.len_u*(cnt-1)), sys ) * dt; 
     end
 end
 
 %% 現在時刻からT秒未来までの随伴変数の予測（Euler近似）
-function lmd = Backward( x, u, system, nmpc )
-    dt = nmpc.tf / nmpc.N;
+function lmd = Backward( x, u, sys, nmpc )
+    dt = nmpc.tf / nmpc.dv;
     
-    lmd = zeros( nmpc.len_lmd * nmpc.N, 1 );
-    lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(nmpc.N-1)) = dPhidx( x((1:nmpc.len_x)+nmpc.len_x*(nmpc.N-1)), nmpc );
+    lmd = zeros( nmpc.len_lmd * nmpc.dv, 1 );
+    lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(nmpc.dv-1)) = dPhidx( x((1:nmpc.len_x)+nmpc.len_x*(nmpc.dv-1)), nmpc );
     
-    for cnt = nmpc.N-1:-1:1
+    for cnt = nmpc.dv-1:-1:1
         lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt-1)) = lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt)) ...
-                                                            + dHdx( x((1:nmpc.len_x)+nmpc.len_x*(cnt)), u, lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt)), system, nmpc ) * dt;
+                                                            + dHdx( x((1:nmpc.len_x)+nmpc.len_x*(cnt)), u, lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt)), sys, nmpc ) * dt;
     end
 end
 
-%% nonlinear state equation
-function dx = nonlinear_model(xTrue, u, system)
-    % dx = f( xTrue, u )
-    dx = [xTrue(2);
-          system.a * xTrue(1) + system.b * xTrue(2) * u(1)]; 
+%% 状態方程式
+% dx = f( x, u )
+function dx = Func( x, u, sys )
+    dx = [ ...
+        x(2); ...
+        sys.a * x(1) + sys.b * x(2) * u(1); ...
+        ]; 
 end
 
-%% plot figure
+function dx = nonlinear_model(t, xTrue, u, sys)
+    % In this simulation, the body frame and its transformation is used
+    % instead of a hybrid frame. That is because for the solver ode45, it
+    % is important to have the nonlinear system of equations in the first
+    % order form. 
+    
+    dx = [ ...
+        xTrue(2); ...
+        sys.a * xTrue(1) + sys.b * xTrue(2) * u; ...
+        ]; 
+end
+
+%% 函数Hの状態微分
+% x        : [ x;dx ]       （位置，速度）
+% u        : [ u;v;mu ]     （操作量，ダミー操作量，ラグランジュ乗数）
+% lmd      : [ lmd1;lmd2 ]  （随伴変数1，随伴変数2）
+% sys      : a              （システム係数）
+% sys      : b              （システム係数）
+% cgmres   : [ q1;q2 ]      （位置の重み，速度の重み）
+
+function Hx = dHdx( x, u, lmd, sys, nmpc )
+    Hx = [ ...
+		nmpc.q(1) * x(1) + sys.a * lmd(2);
+		nmpc.q(2) * x(2) + sys.b * lmd(2) * u(1) + lmd(1);
+	];
+end
+
 function drow_figure(xTrue, uk, current_step)
     % plot state
     figure(1)
@@ -183,25 +232,12 @@ function drow_figure(xTrue, uk, current_step)
     plot(0:current_step - 1, xTrue(2,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('$\dot{y}$ [m/s]','interpreter','latex','FontSize',10);
+    ylabel('$\dot_{y}$ [m/s]','interpreter','latex','FontSize',10);
     
-    % plot input
-    figure(2);
-    subplot(2, 1, 1)
-    plot(0:current_step - 1, uk(1,:), 'ko-',...
-        'LineWidth', 1.0, 'MarkerSize', 4);
-    xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('Attenuation coefficient [N/(m/s)]','interpreter','latex','FontSize',10);
-    subplot(2, 1, 2)
-    plot(0:current_step - 1, uk(2,:), 'ko-',...
-        'LineWidth', 1.0, 'MarkerSize', 4);
-    xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('dummy input $\upsilon$','interpreter','latex','FontSize',10);
-    
-    % plot Lagrange multiplier
-    figure(3);
-    plot(0:current_step - 1, uk(3,:), 'ko-',...
-        'LineWidth', 1.0, 'MarkerSize', 4);
-    xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('Lagrange multiplier $\mu$','interpreter','latex','FontSize',10);
+%     % plot state
+%     figure(2);
+%     plot(0:current_step - 1, uk(1,:), 'ko-',...
+%         'LineWidth', 1.0, 'MarkerSize', 4);
+%     xlabel('Time Step','interpreter','latex','FontSize',10);
+%     ylabel('$\Delta \delta$ [rad]','interpreter','latex','FontSize',10);
 end
