@@ -2,64 +2,67 @@ clear;
 close all;
 clc;
 
-%% システム定義
+%% Setup and Parameters
+dt   = 0.01; % sample time
+nx   = 2;    % Number of states
+nu   = 3;    % Number of input(u1=Attenuation coefficient, u2=Dummy input, u3=Lagrange multiplier)
+nlmd = 2;    % Number of companion variable
+
+sim_time = 10; % Simulation time [s]
+
 sys.a = -1;     % システム変数
 sys.b = -1;     % システム変数
 
-%% シミュレーション定義
-SimPeriod = 10;                         % シミュレーション時間 (s)
-dSamplingPeriod = 0.01;                 % サンプリング周期 (s)
+system.m = 1; %[kg]
+system.k = 1; %[N/m]
 
-%% C/GMRESのコントローラ定義
-nmpc.tf = 1.0;                          % 予測時間の最終値 (s)
-nmpc.dv = 5;                            % 予測時間の分割数 (-) （評価函数によって評価するポイントの数）
+%% NMPC parameters
+params_nmpc.tf = 1.0;             % Final value of prediction time [s]
+params_nmpc.N = 5;                % Number of divisions of the prediction time [-]
 
-nmpc.x0 = [2;0];                        % コントローラに与える初期状態
-nmpc.u0 = [0.01;0.9;0.03];              % コントローラに与える初期操作量
+params_nmpc.x0 = [2;0];           % Initial state
+params_nmpc.u0 = [0.01;0.9;0.03]; % Initial u
 
-nmpc.sf = [ 1;10 ];                     % 予測時間の最終状態に対する重み（終端コスト）
-nmpc.q = [ 1;10 ];                      % 状態に対する重み（ステージコスト）
-nmpc.r = [ 1;0.01 ];                    % 操作量に対する重み
+params_nmpc.sf = [ 1;10 ];        % Termination cost weight matrix
+params_nmpc.q = [ 1;10 ];         % Weight matrix of state quantities
+params_nmpc.r = [ 1;0.01 ];       % Weight matrix of input quantities
 
-nmpc.umin = -1;                         % 入力上限（下限はゼロに設定している）
-nmpc.umax = 1;                          % 入力上限（下限はゼロに設定している）
+params_nmpc.umin = -1;            % upper input limit
+params_nmpc.umax = 1;             % lower input limit
 
-%% C/GMRESのコントローラ用計算
+params_nmpc.len_x   = nx;         % Number of states
+params_nmpc.len_u   = nu;         % Number of input(u1=Attenuation coefficient, u2=Dummy input, u3=Lagrange multiplier)
+params_nmpc.len_lmd = nlmd;       % Number of companion variable
 
-% 初期入力値の計算（Newton法）
-lmd0 = dPhidx( nmpc.x0, nmpc );
-u0 = [1;2;3;]; % Newton法の初期値
+%% Initial value calculation using Newton's method
+lmd0 = dPhidx( params_nmpc.x0, params_nmpc );
 
 for cnt = 1:20
-    nmpc.u0 = nmpc.u0 - ddHddu( nmpc.x0, nmpc.u0, lmd0, sys, nmpc ) \ dHdu( nmpc.x0, nmpc.u0, lmd0, sys, nmpc );
+    params_nmpc.u0 = params_nmpc.u0 - ddHddu(params_nmpc.u0, params_nmpc ) \ dHdu( params_nmpc.x0, params_nmpc.u0, lmd0, sys, params_nmpc );
 end
 
-nmpc.len_x = length( nmpc.x0 );     % 状態の数
-nmpc.len_u = length( nmpc.u0 );     % 操作量の数
-nmpc.len_lmd = nmpc.len_x;          % 随伴変数の数
-
-xTrue(:, 1) = [2;0];
-uk(:, 1) = nmpc.u0;
-uk_horizon(:, 1) = repmat( nmpc.u0, nmpc.dv, 1 );
+%% main loop
+xTrue(:, 1) = params_nmpc.x0;
+uk(:, 1) = params_nmpc.u0;
+uk_horizon(:, 1) = repmat( params_nmpc.u0, params_nmpc.N, 1 );
 current_step = 1;
-sim_length = length(1:dSamplingPeriod:SimPeriod);
+sim_length = length(1:dt:sim_time);
 solvetime = zeros(1, sim_length + 1);
 
-%% main loop
-for i = 1:dSamplingPeriod:SimPeriod
+for i = 1:dt:sim_time
     i
     % update time
     current_step = current_step + 1;
     
     % solve nmpc
     tic;
-    [uk(:, current_step), uk_horizon(:, current_step)] = NMPC( xTrue(:, current_step - 1), uk_horizon(:, current_step - 1), sys, nmpc);
+    [uk(:, current_step), uk_horizon(:, current_step)] = NMPC( xTrue(:, current_step - 1), uk_horizon(:, current_step - 1), sys, params_nmpc);
     solvetime(1, current_step - 1) = toc;
     
     % update state
     u = uk(:, current_step);
-    T = dSamplingPeriod*current_step:dSamplingPeriod:dSamplingPeriod*current_step+dSamplingPeriod;
-    [T, x] = ode45(@(t,x) nonlinear_model(t, x, u(1), sys), T, xTrue(:, current_step - 1));
+    T = dt*current_step:dt:dt*current_step+dt;
+    [T, x] = ode45(@(t,x) nonlinear_model(x, u(1), sys), T, xTrue(:, current_step - 1));
     xTrue(:, current_step) = x(end,:);
 end
 
@@ -79,7 +82,7 @@ function Hu = dHdu( x, u, lmd, sys, nmpc )
 end
 
 %% Hの2階入力微分
-function Huu = ddHddu( x, u, lmd, sys, nmpc )
+function Huu = ddHddu(u, nmpc )
     Huu = [ ...
 		2 * u(3) + nmpc.r(1), 0, 2 * ( u(1) - ( nmpc.umin + nmpc.umax ) / 2 );
 		0, 2 * u(3), 2 * u(2);
@@ -95,7 +98,7 @@ end
 %% NMPC
 function [uk, uk_horizon] = NMPC( x_current, uk_horizon, sys, nmpc )
     for cnt = 1:10
-        uk_horizon = uk_horizon - ( dFdu( x_current, uk_horizon, sys, nmpc ) \ CalcF( x_current, uk_horizon, sys, nmpc ) );
+        uk_horizon = uk_horizon - ( dFdu( x_current, uk_horizon, sys, nmpc ) \ F( x_current, uk_horizon, sys, nmpc ) );
     end
         
     uk = uk_horizon(1:nmpc.len_u);
@@ -104,29 +107,29 @@ end
 %% C/GMRESでの函数Fの計算
 function dF = dFdu( x_current, u, sys, nmpc )
 
-    dF = zeros( nmpc.len_u * nmpc.dv, nmpc.len_u * nmpc.dv );
+    dF = zeros( nmpc.len_u * nmpc.N, nmpc.len_u * nmpc.N );
     diff = 0.01;
     
-    for cnt = 1:nmpc.dv*nmpc.len_u
+    for cnt = 1:nmpc.N*nmpc.len_u
         u_buff_p = u;
         u_buff_n = u;
 
         u_buff_p(cnt) = u_buff_p(cnt) + diff;
         u_buff_n(cnt) = u_buff_n(cnt) - diff;
         
-        dF(:,cnt) = ( CalcF( x_current, u_buff_p, sys, nmpc ) - CalcF( x_current, u_buff_n, sys, nmpc ) ) / ( 2 * diff );
+        dF(:,cnt) = ( F( x_current, u_buff_p, sys, nmpc ) - F( x_current, u_buff_n, sys, nmpc ) ) / ( 2 * diff );
     end
 end
 
 %% C/GMRESでの函数Fの計算
-function F = CalcF( x_current, u, sys, nmpc )
+function ans_F = F( x_current, u, sys, nmpc )
     x = Forward( x_current, u, sys, nmpc );
     lmd = Backward( x, u, sys, nmpc );
 
-    F = zeros( nmpc.len_u * nmpc.dv, 1 );
+    ans_F = zeros( nmpc.len_u * nmpc.N, 1 );
 
-    for cnt = 1:nmpc.dv
-        F((1:nmpc.len_u)+nmpc.len_u*(cnt-1)) = dHdu(x((1:nmpc.len_x)+nmpc.len_x*(cnt-1)), ...
+    for cnt = 1:nmpc.N
+        ans_F((1:nmpc.len_u)+nmpc.len_u*(cnt-1)) = dHdu(x((1:nmpc.len_x)+nmpc.len_x*(cnt-1)), ...
                                                     u((1:nmpc.len_u)+nmpc.len_u*(cnt-1)), ...
                                                     lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt-1)), sys, nmpc );
     end
@@ -134,12 +137,12 @@ end
 
 %% 現在時刻からT秒未来までの状態の予測（Euler近似）
 function x = Forward( x0, u, sys, nmpc )
-    dt = nmpc.tf / nmpc.dv;
+    dt = nmpc.tf / nmpc.N;
     
-    x = zeros( nmpc.len_x * nmpc.dv, 1 );
+    x = zeros( nmpc.len_x * nmpc.N, 1 );
     x(1:nmpc.len_x) = x0;
 
-    for cnt = 1 : nmpc.dv-1
+    for cnt = 1 : nmpc.N-1
        x((1:nmpc.len_x)+nmpc.len_x*(cnt)) = x((1:nmpc.len_x)+nmpc.len_x*(cnt-1)) ...
                                                 + Func( x((1:nmpc.len_x)+nmpc.len_x*(cnt-1)), u((1:nmpc.len_u)+nmpc.len_u*(cnt-1)), sys ) * dt; 
     end
@@ -147,12 +150,12 @@ end
 
 %% 現在時刻からT秒未来までの随伴変数の予測（Euler近似）
 function lmd = Backward( x, u, sys, nmpc )
-    dt = nmpc.tf / nmpc.dv;
+    dt = nmpc.tf / nmpc.N;
     
-    lmd = zeros( nmpc.len_lmd * nmpc.dv, 1 );
-    lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(nmpc.dv-1)) = dPhidx( x((1:nmpc.len_x)+nmpc.len_x*(nmpc.dv-1)), nmpc );
+    lmd = zeros( nmpc.len_lmd * nmpc.N, 1 );
+    lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(nmpc.N-1)) = dPhidx( x((1:nmpc.len_x)+nmpc.len_x*(nmpc.N-1)), nmpc );
     
-    for cnt = nmpc.dv-1:-1:1
+    for cnt = nmpc.N-1:-1:1
         lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt-1)) = lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt)) ...
                                                             + dHdx( x((1:nmpc.len_x)+nmpc.len_x*(cnt)), u, lmd((1:nmpc.len_lmd)+nmpc.len_lmd*(cnt)), sys, nmpc ) * dt;
     end
@@ -167,7 +170,7 @@ function dx = Func( x, u, sys )
         ]; 
 end
 
-function dx = nonlinear_model(t, xTrue, u, sys)
+function dx = nonlinear_model(xTrue, u, sys)
     % In this simulation, the body frame and its transformation is used
     % instead of a hybrid frame. That is because for the solver ode45, it
     % is important to have the nonlinear system of equations in the first
