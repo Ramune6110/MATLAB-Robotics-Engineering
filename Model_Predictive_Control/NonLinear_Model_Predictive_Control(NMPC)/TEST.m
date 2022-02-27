@@ -93,22 +93,12 @@ function Phix = dPhidx( x, cgmres )
 end
 
 %% NMPC
-function [MV, uk_horizon] = NMPC( x_current, uk_horizon, sys, nmpc )
-    %#codegen
-%     persistent u; % 操作量（前回値）
-    
-%     u
-    
-%     if ( isempty( u ) )
-%         u = repmat( nmpc.u0, nmpc.dv, 1 );
-%     end
-    
+function [uk, uk_horizon] = NMPC( x_current, uk_horizon, sys, nmpc )
     for cnt = 1:10
         uk_horizon = uk_horizon - ( dFdu( x_current, uk_horizon, sys, nmpc ) \ CalcF( x_current, uk_horizon, sys, nmpc ) );
     end
         
-    MV = uk_horizon(1:nmpc.len_u);
-
+    uk = uk_horizon(1:nmpc.len_u);
 end
 
 %% C/GMRESでの函数Fの計算
@@ -189,7 +179,7 @@ function dx = nonlinear_model(t, xTrue, u, sys)
         ]; 
 end
 
-%% 函数Hの状態微分
+%% Hの状態微分
 function Hx = dHdx( x, u, lmd, sys, nmpc )
     Hx = [ ...
 		nmpc.q(1) * x(1) + sys.a * lmd(2);
@@ -210,12 +200,25 @@ function drow_figure(xTrue, uk, current_step)
     plot(0:current_step - 1, xTrue(2,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('$\dot_{y}$ [m/s]','interpreter','latex','FontSize',10);
+    ylabel('$\dot{y}$ [m/s]','interpreter','latex','FontSize',10);
     
-    % plot state
+    % plot input
     figure(2);
+    subplot(2, 1, 1)
     plot(0:current_step - 1, uk(1,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('$\Delta \delta$ [rad]','interpreter','latex','FontSize',10);
+    ylabel('Attenuation coefficient [N/(m/s)]','interpreter','latex','FontSize',10);
+    subplot(2, 1, 2)
+    plot(0:current_step - 1, uk(2,:), 'ko-',...
+        'LineWidth', 1.0, 'MarkerSize', 4);
+    xlabel('Time Step','interpreter','latex','FontSize',10);
+    ylabel('dummy input $\upsilon$','interpreter','latex','FontSize',10);
+    
+    % plot Lagrange multiplier
+    figure(3);
+    plot(0:current_step - 1, uk(3,:), 'ko-',...
+        'LineWidth', 1.0, 'MarkerSize', 4);
+    xlabel('Time Step','interpreter','latex','FontSize',10);
+    ylabel('Lagrange multiplier $\mu$','interpreter','latex','FontSize',10);
 end
