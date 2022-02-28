@@ -8,9 +8,15 @@ dimx = 6;    % Number of states
 dimu = 6;    % Number of input(u1 = thrust1, u2 = thrust1, u3 = dummy input, u4 = dummy input, u5 = Lagrange multiplier1, u6 = Lagrange multiplier2)
 diml = 6;    % Number of companion variable
 
-sim_time = 20; % Simulation time [s]
+%sim_time = 7; % Simulation time [s]
 
-%% Semi active dumper
+% sim_time = 7.5; % Simulation time [s]
+sim_time = 10; % Simulation time [s]
+% end_condition = 0.0001; % [m]
+
+end_condition = 0.0005; % [m]
+
+%% Hovercraft
 system.M = 0.894;  % [kg]
 system.I = 0.0125; % [kgÅEm^2]
 system.r = 0.0485; % [m]
@@ -80,6 +86,13 @@ for i = 1:dt:sim_time
     T = dt*current_step:dt:dt*current_step+dt;
     [T, x] = ode45(@(t,x) nonlinear_model(x, uk(:, current_step), system), T, xTrue(:, current_step - 1));
     xTrue(:, current_step) = x(end,:);
+    
+    % break condition
+    x_target  = params_nmpc.xf;
+    x_current = xTrue(:, current_step);
+    if ( (x_current(1) - x_target(1))^2 + (x_current(2) - x_target(2))^2 ) <= end_condition
+        break
+    end
 end
 
 %% solve average time
@@ -228,21 +241,21 @@ function plot_figure(xTrue, uk, normF, nmpc, current_step)
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('X [m]','interpreter','latex','FontSize',10);
-    yline(0.0, '--r', 'LineWidth', 1.0);
+    yline(0.0, '--r', 'LineWidth', 2.0);
     
     subplot(3, 1, 2)
     plot(0:current_step - 1, xTrue(2,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('Y [m]','interpreter','latex','FontSize',10);
-    yline(0.0, '--r', 'LineWidth', 1.0);
+    yline(0.0, '--r', 'LineWidth', 2.0);
      
     subplot(3, 1, 3)
     plot(0:current_step - 1, xTrue(3,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$\theta$ [rad]','interpreter','latex','FontSize',10);
-    yline(0.0, '--r', 'LineWidth', 1.0);
+    yline(0.0, '--r', 'LineWidth', 2.0);
     
     % plot state 
     figure(2);
@@ -251,21 +264,21 @@ function plot_figure(xTrue, uk, normF, nmpc, current_step)
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$\dot{X} [m/s]','interpreter','latex','FontSize',10);
-    yline(0.0, '--r', 'LineWidth', 1.0);
+    yline(0.0, '--r', 'LineWidth', 2.0);
     
     subplot(3, 1, 2)
     plot(0:current_step - 1, xTrue(5,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$\dot{Y} [m/s]','interpreter','latex','FontSize',10);
-    yline(0.0, '--r', 'LineWidth', 1.0);
+    yline(0.0, '--r', 'LineWidth', 2.0);
      
     subplot(3, 1, 3)
     plot(0:current_step - 1, xTrue(6,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$\dot{\theta}$ [rad/s]','interpreter','latex','FontSize',10);
-    yline(0.0, '--r', 'LineWidth', 1.0);
+    yline(0.0, '--r', 'LineWidth', 2.0);
     
     % plot input
     figure(3);
@@ -308,15 +321,15 @@ function plot_figure(xTrue, uk, normF, nmpc, current_step)
     
     % plot optimality error
     figure(6);
-    plot(0:current_step - 1, normF(1,:), 'ko-',...
+    plot(0:current_step - 1, normF(1,1:current_step), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('optimality error norm','interpreter','latex','FontSize',10);
     
     % plot trajectory
     figure(7)
-    plot(xTrue(1,:), xTrue(2,:), 'r',...
-        'LineWidth', 1.0, 'MarkerSize', 4); hold on;
+    plot(xTrue(1,:), xTrue(2,:), 'b',...
+        'LineWidth', 2.0, 'MarkerSize', 4); hold on;
     % plot target position
     target = nmpc.xf;
     plot(target(1), target(2), 'dg', 'LineWidth', 2);
