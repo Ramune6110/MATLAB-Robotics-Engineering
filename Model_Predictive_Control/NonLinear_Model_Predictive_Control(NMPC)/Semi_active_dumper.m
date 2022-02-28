@@ -19,7 +19,7 @@ system.b = - 1 / system.m;
 %% NMPC parameters
 params_nmpc.tf = 1.0;             % Final value of prediction time [s]
 params_nmpc.N = 5;                % Number of divisions of the prediction time [-]
-params_nmpc.kmax = 10;            % Number of Newton's method
+params_nmpc.kmax = 20;            % Number of Newton's method
 params_nmpc.hdir = 0.01;          % step in the Forward Difference Approximation
 
 params_nmpc.x0 = [2;0];           % Initial state
@@ -54,6 +54,7 @@ uk(:, 1) = params_nmpc.u0;
 uk_horizon(:, 1) = repmat( params_nmpc.u0, params_nmpc.N, 1 );
 current_step = 1;
 sim_length = length(1:dt:sim_time);
+normF = zeros(1, sim_length + 1);
 solvetime = zeros(1, sim_length + 1);
 
 for i = 1:dt:sim_time
@@ -63,8 +64,15 @@ for i = 1:dt:sim_time
     
     % solve nmpc
     tic;
-    [uk(:, current_step), uk_horizon(:, current_step)] = NMPC( obj, xTrue(:, current_step - 1), uk_horizon(:, current_step - 1), system, params_nmpc);
+    [uk(:, current_step), uk_horizon(:, current_step), algebraic_equation] = NMPC( obj, xTrue(:, current_step - 1), uk_horizon(:, current_step - 1), system, params_nmpc);
     solvetime(1, current_step - 1) = toc;
+    
+    % optimality error norm F
+    total = 0;
+    for j = 1:params_nmpc.dimu * params_nmpc.N
+        total = total + algebraic_equation(j, :)^2;
+    end
+    normF(1, current_step - 1) = sqrt(total);
     
     % update state
     T = dt*current_step:dt:dt*current_step+dt;
@@ -76,7 +84,7 @@ end
 avg_time = sum(solvetime) / current_step;
 disp(avg_time);
 
-plot_figure(xTrue, uk, current_step);
+plot_figure(xTrue, uk, normF, current_step);
 
 %% define systems
 function [xv, lmdv, uv, muv, fxu, Cxu] = defineSystem(system, nmpc)
@@ -120,11 +128,12 @@ function [obj, H, Hx, Hu, Huu, phix] = generate_Euler_Lagrange_Equations(xv, lmd
 end
 
 %% NMPC
-function [uk, uk_horizon] = NMPC( obj, x_current, uk_horizon, system, nmpc )
+function [uk, uk_horizon, algebraic_equation] = NMPC( obj, x_current, uk_horizon, system, nmpc )
     for cnt = 1:nmpc.kmax
         uk_horizon = uk_horizon - ( dFdu( obj, x_current, uk_horizon, system, nmpc ) \ F( obj, x_current, uk_horizon, system, nmpc ) );
     end
-        
+    
+    algebraic_equation = F( obj, x_current, uk_horizon, system, nmpc );
     uk = uk_horizon(1:nmpc.dimu);
 end
 
@@ -140,6 +149,7 @@ function dF = dFdu( obj, x_current, u, system, nmpc )
         u_buff_p(cnt) = u_buff_p(cnt) + diff;
         u_buff_n(cnt) = u_buff_n(cnt) - diff;
         
+        % dF = Å›F / Å›u is the Forward Difference Approximation
         dF(:,cnt) = ( F( obj, x_current, u_buff_p, system, nmpc ) - F( obj, x_current, u_buff_n, system, nmpc ) ) / ( diff );
     end
 end
@@ -193,7 +203,7 @@ function dx = nonlinear_model(xTrue, u, system)
 end
 
 %% plot figure
-function plot_figure(xTrue, uk, current_step)
+function plot_figure(xTrue, uk, normF, current_step)
     % plot state
     figure(1)
     subplot(2, 1, 1)
@@ -227,4 +237,11 @@ function plot_figure(xTrue, uk, current_step)
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('Lagrange multiplier $\mu$','interpreter','latex','FontSize',10);
+    
+    % plot optimality error
+    figure(4);
+    plot(0:current_step - 1, normF(1,:), 'ko-',...
+        'LineWidth', 1.0, 'MarkerSize', 4);
+    xlabel('Time Step','interpreter','latex','FontSize',10);
+    ylabel('optimality error norm','interpreter','latex','FontSize',10);
 end
