@@ -120,10 +120,10 @@ function [obj, H, Hx, Hu, Huu, phix] = generate_Euler_Lagrange_Equations(xv, lmd
     H = simplify(L + lmdv' * fxu + muv' * Cxu); % H = Hamiltonian
     uv = [uv; muv];                             % extend input
     
-    Hx   = simplify(gradient(H, xv));   % Hx = Å›H / Å›x
-    Hu   = simplify(gradient(H, uv));   % Hu = Å›H / Å›u
-    Huu  = simplify(jacobian(Hu, uv));  % Huu = Å›^2H / Å›u^2
-    phix = simplify(gradient(phi, xv)); % Huu = Å›É” / Å›x
+    Hx   = simplify(gradient(H, xv));           % Hx = Å›H / Å›x
+    Hu   = simplify(gradient(H, uv));           % Hu = Å›H / Å›u
+    Huu  = simplify(jacobian(Hu, uv));          % Huu = Å›^2H / Å›u^2
+    phix = simplify(gradient(phi, xv));         % Huu = Å›É” / Å›x
     
     obj.Hx   = matlabFunction(Hx, 'vars', {xv, uv, lmdv, qv});
     obj.Hu   = matlabFunction(Hu, 'vars', {xv, uv, lmdv, rv});

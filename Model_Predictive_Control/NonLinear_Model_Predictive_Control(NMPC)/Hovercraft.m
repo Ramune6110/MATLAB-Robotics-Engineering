@@ -16,27 +16,27 @@ system.I = 0.0125; % [kgÅEm^2]
 system.r = 0.0485; % [m]
 
 %% NMPC parameters
-params_nmpc.tf = 1.0;             % Final value of prediction time [s]
-params_nmpc.N = 10;               % Number of divisions of the prediction time [-]
-params_nmpc.kmax = 20;            % Number of Newton's method
-params_nmpc.hdir = 0.0001;        % step in the Forward Difference Approximation
+params_nmpc.tf = 1.0;                                         % Final value of prediction time [s]
+params_nmpc.N = 10;                                           % Number of divisions of the prediction time [-]
+params_nmpc.kmax = 20;                                        % Number of Newton's method
+params_nmpc.hdir = 0.0001;                                    % step in the Forward Difference Approximation
 
-params_nmpc.x0 = [ -0.25; 0.35; 0.0; 0.0; 0.0; 0.0 ]; % Initial state
-params_nmpc.u0 = [ 0.2; 0.1; 0.2; 0.03; 0.01; 0.02 ]; % Initial u
-params_nmpc.xf = [ 0.0; 0.0; 0.0; 0.0; 0.0; 0.0 ];    % target state
+params_nmpc.x0 = [ -0.25; 0.35; 0.0; 0.0; 0.0; 0.0 ];         % Initial state
+params_nmpc.u0 = [ 0.2; 0.1; 0.2; 0.03; 0.01; 0.02 ];         % Initial u
+params_nmpc.xf = [ 0.0; 0.0; 0.0; 0.0; 0.0; 0.0 ];            % target state
 
-params_nmpc.sf = [ 10; 15; 0.1; 1; 1; 0.01 ];         % Termination cost weight matrix
-params_nmpc.q  = [ 10; 15; 0.1; 1; 1; 0.01 ];         % Weight matrix of state quantities
-params_nmpc.r  = [ 1; 1; 0.001; 0.001 ];              % Weight matrix of input quantities
-params_nmpc.ki = [ 0.28; 0.28 ];                      % Weight matrix of dummy input
+params_nmpc.sf = [ 10; 15; 0.1; 1; 1; 0.01 ];                 % Termination cost weight matrix
+params_nmpc.q  = [ 10; 15; 0.1; 1; 1; 0.01 ];                 % Weight matrix of state quantities
+params_nmpc.r  = [ 1; 1; 0.001; 0.001 ];                      % Weight matrix of input quantities
+params_nmpc.ki = [ 0.28; 0.28 ];                              % Weight matrix of dummy input
 
 params_nmpc.umin = -0.121;                                    % lower input limit [N]
 params_nmpc.umax = 0.342;                                     % upper input limit [N]
 params_nmpc.uavg = (params_nmpc.umax + params_nmpc.umin) / 2; % average input limit [N]
 
-params_nmpc.dimx = dimx;                              % Number of states
-params_nmpc.dimu = dimu;                              % Number of input(u1 = Attenuation coefficient, u2 = Dummy input, u3 = Lagrange multiplier)
-params_nmpc.diml = diml;                              % Number of companion variable
+params_nmpc.dimx = dimx;                                      % Number of states
+params_nmpc.dimu = dimu;                                      % Number of input(u1 = Attenuation coefficient, u2 = Dummy input, u3 = Lagrange multiplier)
+params_nmpc.diml = diml;                                      % Number of companion variable
  
 %% define systems
 [xv, lmdv, uv, muv, fxu, Cxu] = defineSystem(system, params_nmpc);
@@ -128,10 +128,10 @@ function [obj, H, Hx, Hu, Huu, phix] = generate_Euler_Lagrange_Equations(xv, lmd
     H = simplify(L + lmdv' * fxu + muv' * Cxu); % H = Hamiltonian
     uv = [uv; muv];                             % extend input
     
-    Hx   = simplify(gradient(H, xv));   % Hx = Å›H / Å›x
-    Hu   = simplify(gradient(H, uv));   % Hu = Å›H / Å›u
-    Huu  = simplify(jacobian(Hu, uv));  % Huu = Å›^2H / Å›u^2
-    phix = simplify(gradient(phi, xv)); % Huu = Å›É” / Å›x
+    Hx   = simplify(gradient(H, xv));           % Hx = Å›H / Å›x
+    Hu   = simplify(gradient(H, uv));           % Hu = Å›H / Å›u
+    Huu  = simplify(jacobian(Hu, uv));          % Huu = Å›^2H / Å›u^2
+    phix = simplify(gradient(phi, xv));         % Huu = Å›É” / Å›x
     
     obj.Hx   = matlabFunction(Hx, 'vars', {xv, uv, lmdv, qv});
     obj.Hu   = matlabFunction(Hu, 'vars', {xv, uv, lmdv, rv, kv});
