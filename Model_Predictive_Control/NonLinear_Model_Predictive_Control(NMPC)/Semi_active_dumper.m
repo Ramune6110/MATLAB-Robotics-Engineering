@@ -94,9 +94,11 @@ function [xv, lmdv, uv, muv, fxu, Cxu] = defineSystem(system, nmpc)
     uv   = [u1; u2];     % control input(include dummy input)
     muv  = u3;           % Lagrange multiplier vectors for equality constraints
     
+    % state equation
     fxu = [xv(2);
-           system.a * xv(1) + system.b* xv(2) * uv(1)];            % state equation
-    Cxu = (uv(1) - nmpc.umax / 2)^2 + uv(2)^2 - (nmpc.umax / 2)^2; % constraints
+           system.a * xv(1) + system.b* xv(2) * uv(1)];
+    % constraints
+    Cxu = (uv(1) - nmpc.umax / 2)^2 + uv(2)^2 - (nmpc.umax / 2)^2; 
 end
 
 function [L, phi, qv, rv, sfv] = evaluationFunction(xv, uv)
@@ -108,8 +110,10 @@ function [L, phi, qv, rv, sfv] = evaluationFunction(xv, uv)
     R   = diag([r1, r2]);   % square matrix
     Sf  = diag([sf1, sf2]); % square matrix
     
-    L   = simplify( (xv' * Q * xv) / 2 + rv(1) * uv(1)^2 / 2 - rv(2) * uv(2) ); % Integrand in the performance matrix
-    phi = simplify( (xv' * Sf * xv) / 2 );                                      % terminal penalty
+    % stage cost
+    L   = simplify( (xv' * Q * xv) / 2 + rv(1) * uv(1)^2 / 2 - rv(2) * uv(2) ); 
+    % terminal cost
+    phi = simplify( (xv' * Sf * xv) / 2 );                                      
 end
 
 function [obj, H, Hx, Hu, Huu, phix] = generate_Euler_Lagrange_Equations(xv, lmdv, uv, muv, fxu, Cxu, L, phi, qv, rv, sfv)
