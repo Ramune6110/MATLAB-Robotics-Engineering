@@ -6,7 +6,7 @@ clc;
 dt   = 0.01; % sample time
 dimx = 2;    % Number of states
 dimu = 3;    % Number of input(u1 = Attenuation coefficient, u2 = Dummy input, u3 = Lagrange multiplier)
-dimc = 2;    % Number of companion variable
+diml = 2;    % Number of companion variable
 
 sim_time = 20; % Simulation time [s]
 
@@ -29,12 +29,12 @@ params_nmpc.sf = [ 1;10 ];        % Termination cost weight matrix
 params_nmpc.q = [ 1;10 ];         % Weight matrix of state quantities
 params_nmpc.r = [ 1;0.01 ];       % Weight matrix of input quantities
 
-params_nmpc.umin = 0;             % upper input limit
-params_nmpc.umax = 1;             % lower input limit
+params_nmpc.umin = 0;             % lower input limit
+params_nmpc.umax = 1;             % upper input limit
 
 params_nmpc.dimx = dimx;          % Number of states
 params_nmpc.dimu = dimu;          % Number of input(u1 = Attenuation coefficient, u2 = Dummy input, u3 = Lagrange multiplier)
-params_nmpc.dimc = dimc;          % Number of companion variable
+params_nmpc.diml = diml;          % Number of companion variable
  
 %% define systems
 [xv, lmdv, uv, muv, fxu, Cxu] = defineSystem(system, params_nmpc);
@@ -91,8 +91,8 @@ function [xv, lmdv, uv, muv, fxu, Cxu] = defineSystem(system, nmpc)
     syms x1 x2 lmd1 lmd2 u1 u2 u3
     xv   = [x1; x2];     % state vector
     lmdv = [lmd1; lmd2]; % costate vector
-    uv   = [u1; u2];     % control input
-    muv  = u3;           % multiple vector
+    uv   = [u1; u2];     % control input(include dummy input)
+    muv  = u3;           % Lagrange multiplier vectors for equality constraints
     
     fxu = [xv(2);
            system.a * xv(1) + system.b* xv(2) * uv(1)];            % state equation
@@ -164,7 +164,7 @@ function ans_F = F( obj, x_current, u, system, nmpc )
     for cnt = 1:nmpc.N
         ans_F((1:nmpc.dimu)+nmpc.dimu*(cnt-1)) = obj.Hu(x((1:nmpc.dimx)+nmpc.dimx*(cnt-1)), ...
                                                         u((1:nmpc.dimu)+nmpc.dimu*(cnt-1)), ...
-                                                        lmd((1:nmpc.dimc)+nmpc.dimc*(cnt-1)),...
+                                                        lmd((1:nmpc.diml)+nmpc.diml*(cnt-1)),...
                                                         nmpc.r );
     end
 end
@@ -186,12 +186,12 @@ end
 function lmd = Backward( obj, x, u, nmpc )
     dt = nmpc.tf / nmpc.N;
     
-    lmd = zeros( nmpc.dimc * nmpc.N, 1 );
-    lmd((1:nmpc.dimc)+nmpc.dimc*(nmpc.N-1)) = obj.phix( x((1:nmpc.dimx)+nmpc.dimx*(nmpc.N-1)), nmpc.sf );
+    lmd = zeros( nmpc.diml * nmpc.N, 1 );
+    lmd((1:nmpc.diml)+nmpc.diml*(nmpc.N-1)) = obj.phix( x((1:nmpc.dimx)+nmpc.dimx*(nmpc.N-1)), nmpc.sf );
     
     for cnt = nmpc.N-1:-1:1                                                    
-        lmd((1:nmpc.dimc)+nmpc.dimc*(cnt-1)) = lmd((1:nmpc.dimc)+nmpc.dimc*(cnt)) ...
-                                             + obj.Hx( x((1:nmpc.dimx)+nmpc.dimx*(cnt)), u, lmd((1:nmpc.dimc)+nmpc.dimc*(cnt)), nmpc.q ) * dt;
+        lmd((1:nmpc.diml)+nmpc.diml*(cnt-1)) = lmd((1:nmpc.diml)+nmpc.diml*(cnt)) ...
+                                             + obj.Hx( x((1:nmpc.dimx)+nmpc.dimx*(cnt)), u, lmd((1:nmpc.diml)+nmpc.diml*(cnt)), nmpc.q ) * dt;
     end
 end
 
