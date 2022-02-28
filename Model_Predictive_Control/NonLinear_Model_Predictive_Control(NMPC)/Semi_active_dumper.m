@@ -8,7 +8,7 @@ dimx = 2;    % Number of states
 dimu = 3;    % Number of input(u1 = Attenuation coefficient, u2 = Dummy input, u3 = Lagrange multiplier)
 dimc = 2;    % Number of companion variable
 
-sim_time = 10; % Simulation time [s]
+sim_time = 20; % Simulation time [s]
 
 %% Semi active dumper
 system.m = 1; %[kg]
@@ -211,12 +211,14 @@ function plot_figure(xTrue, uk, normF, current_step)
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('y [m]','interpreter','latex','FontSize',10);
+    yline(0.0, '--r', 'LineWidth', 1.0);
     
     subplot(2, 1, 2)
     plot(0:current_step - 1, xTrue(2,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$\dot{y}$ [m/s]','interpreter','latex','FontSize',10);
+    yline(0.0, '--r', 'LineWidth', 1.0);
     
     % plot input
     figure(2);
