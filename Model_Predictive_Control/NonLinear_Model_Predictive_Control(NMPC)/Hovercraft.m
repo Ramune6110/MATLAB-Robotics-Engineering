@@ -8,12 +8,7 @@ dimx = 6;    % Number of states
 dimu = 6;    % Number of input(u1 = thrust1, u2 = thrust1, u3 = dummy input, u4 = dummy input, u5 = Lagrange multiplier1, u6 = Lagrange multiplier2)
 diml = 6;    % Number of companion variable
 
-%sim_time = 7; % Simulation time [s]
-
-% sim_time = 7.5; % Simulation time [s]
 sim_time = 10; % Simulation time [s]
-% end_condition = 0.0001; % [m]
-
 end_condition = 0.0005; % [m]
 
 %% Hovercraft
@@ -287,11 +282,16 @@ function plot_figure(xTrue, uk, normF, nmpc, current_step)
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$u_{1}$ [N]','interpreter','latex','FontSize',10);
+    yline(nmpc.umin, '--b', 'LineWidth', 2.0);
+    yline(nmpc.umin, '--b', 'LineWidth', 2.0);
+    
     subplot(2, 1, 2)
     plot(0:current_step - 1, uk(2,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$u_{2}$ [N]','interpreter','latex','FontSize',10);
+    yline(nmpc.umin, '--b', 'LineWidth', 2.0);
+    yline(nmpc.umin, '--b', 'LineWidth', 2.0);
     
     % plot dummy input
     figure(4);
