@@ -20,8 +20,7 @@ system.b = - 1 / system.m;
 params_nmpc.tf = 1.0;             % Final value of prediction time [s]
 params_nmpc.N = 5;                % Number of divisions of the prediction time [-]
 params_nmpc.kmax = 10;            % Number of Newton's method
-params_nmpc.hdir = 0.01;          % step in the Forward Difference Approximation
-
+params_nmpc.hdir = 0.00;
 params_nmpc.x0 = [2;0];           % Initial state
 params_nmpc.u0 = [0.01;0.9;0.03]; % Initial u
 
@@ -131,7 +130,7 @@ end
 %% calculation dF = Å›F / Å›u
 function dF = dFdu( obj, x_current, u, system, nmpc )
     dF = zeros( nmpc.dimu * nmpc.N, nmpc.dimu * nmpc.N );
-    diff = nmpc.hdir;
+    diff = 0.01;
     
     for cnt = 1:nmpc.N*nmpc.dimu
         u_buff_p = u;
@@ -140,7 +139,7 @@ function dF = dFdu( obj, x_current, u, system, nmpc )
         u_buff_p(cnt) = u_buff_p(cnt) + diff;
         u_buff_n(cnt) = u_buff_n(cnt) - diff;
         
-        dF(:,cnt) = ( F( obj, x_current, u_buff_p, system, nmpc ) - F( obj, x_current, u_buff_n, system, nmpc ) ) / ( diff );
+        dF(:,cnt) = ( F( obj, x_current, u_buff_p, system, nmpc ) - F( obj, x_current, u_buff_n, system, nmpc ) ) / ( 2 * diff );
     end
 end
 
