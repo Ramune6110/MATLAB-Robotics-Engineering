@@ -258,14 +258,14 @@ function plot_figure(xTrue, uk, normF, nmpc, current_step)
     plot(0:current_step - 1, xTrue(4,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('$\dot{X} [m/s]','interpreter','latex','FontSize',10);
+    ylabel('$\dot{X}$ [m/s]','interpreter','latex','FontSize',10);
     yline(0.0, '--r', 'LineWidth', 2.0);
     
     subplot(3, 1, 2)
     plot(0:current_step - 1, xTrue(5,:), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('$\dot{Y} [m/s]','interpreter','latex','FontSize',10);
+    ylabel('$\dot{Y}$ [m/s]','interpreter','latex','FontSize',10);
     yline(0.0, '--r', 'LineWidth', 2.0);
      
     subplot(3, 1, 3)
@@ -283,7 +283,7 @@ function plot_figure(xTrue, uk, normF, nmpc, current_step)
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$u_{1}$ [N]','interpreter','latex','FontSize',10);
     yline(nmpc.umin, '--b', 'LineWidth', 2.0);
-    yline(nmpc.umin, '--b', 'LineWidth', 2.0);
+    yline(nmpc.umax, '--b', 'LineWidth', 2.0);
     
     subplot(2, 1, 2)
     plot(0:current_step - 1, uk(2,:), 'ko-',...
@@ -291,7 +291,7 @@ function plot_figure(xTrue, uk, normF, nmpc, current_step)
     xlabel('Time Step','interpreter','latex','FontSize',10);
     ylabel('$u_{2}$ [N]','interpreter','latex','FontSize',10);
     yline(nmpc.umin, '--b', 'LineWidth', 2.0);
-    yline(nmpc.umin, '--b', 'LineWidth', 2.0);
+    yline(nmpc.umax, '--b', 'LineWidth', 2.0);
     
     % plot dummy input
     figure(4);
@@ -324,12 +324,13 @@ function plot_figure(xTrue, uk, normF, nmpc, current_step)
     plot(0:current_step - 1, normF(1,1:current_step), 'ko-',...
         'LineWidth', 1.0, 'MarkerSize', 4);
     xlabel('Time Step','interpreter','latex','FontSize',10);
-    ylabel('optimality error norm','interpreter','latex','FontSize',10);
+    ylabel('optimality error norm F','interpreter','latex','FontSize',10);
     
     % plot trajectory
     figure(7)
     plot(xTrue(1,:), xTrue(2,:), 'b',...
         'LineWidth', 2.0, 'MarkerSize', 4); hold on;
+    grid on;
     % plot target position
     target = nmpc.xf;
     plot(target(1), target(2), 'dg', 'LineWidth', 2);
