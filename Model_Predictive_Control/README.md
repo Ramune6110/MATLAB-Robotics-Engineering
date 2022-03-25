@@ -19,7 +19,7 @@ Documents in Japanease:
 二次計画法に基づく線形モデル予測制御による軌道追従制御：MATLABサンプルプログラム - Ramune6110  
 https://ramune6110.hatenablog.com/entry/2022/02/24/000153
 
-## NonLinear_Model_Predictive_Control(NMPC)
+## Nonlinear Model Predictive Control(NMPC)
 ### Newton method
 ![fig11](https://user-images.githubusercontent.com/52307432/160147602-91d9b7cb-d87c-4deb-ada6-cb18a2f1df23.png)
 
