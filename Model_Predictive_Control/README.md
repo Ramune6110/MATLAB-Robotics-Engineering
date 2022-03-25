@@ -28,3 +28,6 @@ Sample code for automobile position control.
 Documents in Japanease:  
 ニュートン法に基づく非線形モデル予測制御：MATLABサンプルプログラム - Ramune6110  
 https://ramune6110.hatenablog.com/entry/2022/03/21/203716
+
+# Author
+Ramune6110
