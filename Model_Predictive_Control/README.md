@@ -18,3 +18,5 @@ Sample code for automobile trajectory tracking control.
 Documents in Japanease:  
 二次計画法に基づく線形モデル予測制御による軌道追従制御：MATLABサンプルプログラム - Ramune6110  
 https://ramune6110.hatenablog.com/entry/2022/02/24/000153
+
+## NonLinear_Model_Predictive_Control(NMPC)
