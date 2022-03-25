@@ -20,3 +20,9 @@ Documents in Japanease:
 https://ramune6110.hatenablog.com/entry/2022/02/24/000153
 
 ## NonLinear_Model_Predictive_Control(NMPC)
+### Newton method
+![fig11](https://user-images.githubusercontent.com/52307432/160147602-91d9b7cb-d87c-4deb-ada6-cb18a2f1df23.png)
+
+Documents in Japanease:  
+ニュートン法に基づく非線形モデル予測制御：MATLABサンプルプログラム - Ramune6110  
+https://ramune6110.hatenablog.com/entry/2022/03/21/203716
