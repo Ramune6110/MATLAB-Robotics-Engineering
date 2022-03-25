@@ -11,7 +11,7 @@ Documents in Japanease:
 https://ramune6110.hatenablog.com/entry/2022/02/13/154405
 
 ## Trajectory_tracking_control(LMPC)
-
+![fig3](https://user-images.githubusercontent.com/52307432/160147124-ef1dc4a0-5ee6-42bb-a416-6248afba4583.png)
 
 Sample code for automobile trajectory tracking control.
 
