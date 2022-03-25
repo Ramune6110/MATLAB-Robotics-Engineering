@@ -30,4 +30,4 @@ Documents in Japanease:
 https://ramune6110.hatenablog.com/entry/2022/03/21/203716
 
 # Author
-Ramune6110([@ExcitingRamune](https://www.akurirukoubo.com/shopbrand/ct123)
+Ramune6110([@ExcitingRamune](https://twitter.com/ExcitingRamune))
