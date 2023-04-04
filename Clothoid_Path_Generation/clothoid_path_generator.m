@@ -5,7 +5,7 @@ clc;
 %% main
 start_point = [0, 0];
 start_orientation_list = 0.0;
-goal_point = [10, 0];
+goal_point = [3, 3.5];
 goal_orientation_list = linspace(-pi, pi, 75);
 num_path_points = 100;
 
@@ -49,6 +49,8 @@ function clothoid_path = generate_clothoid_path(start_point, start_yaw, goal_poi
         L = compute_path_length(r, phi1, delta, A);
         curvature = compute_curvature(delta, A, L);
         curvature_rate = compute_curvature_rate(A, L);
+%         curvature = 0.0034;
+%         curvature_rate = 0.004;
     catch exception
         fprintf('Failed to generate clothoid points: %s\n', exception.message);
         clothoid_path = [];
