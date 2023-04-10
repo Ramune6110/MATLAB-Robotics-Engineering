@@ -24,6 +24,7 @@ function QuinticPolynomialExample()
     % Plot x, y
     figure;
     plot(x, y, "-r");
+    grid on;
     
     % Plot yaw
     figure;
