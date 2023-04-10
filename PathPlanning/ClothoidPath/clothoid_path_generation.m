@@ -5,7 +5,7 @@ clc;
 %% main
 start_point = [0, 0];
 start_orientation_list = 0.0;
-goal_point = [3, 3.5];
+goal_point = [10.0, 0];
 goal_orientation_list = linspace(-pi, pi, 75);
 num_path_points = 100;
 
@@ -49,8 +49,6 @@ function clothoid_path = generate_clothoid_path(start_point, start_yaw, goal_poi
         L = compute_path_length(r, phi1, delta, A);
         curvature = compute_curvature(delta, A, L);
         curvature_rate = compute_curvature_rate(A, L);
-%         curvature = 0.0034;
-%         curvature_rate = 0.004;
     catch exception
         fprintf('Failed to generate clothoid points: %s\n', exception.message);
         clothoid_path = [];
@@ -127,7 +125,7 @@ function [x_min, x_max, y_min, y_max] = get_axes_limits(clothoids)
 end
 
 function draw_clothoids(start, goal, num_steps, clothoidal_paths, save_animation)
-    figure('Position', [100, 100, 800, 800]);
+    figure('Position', [0, 0, 600, 600]);
     [x_min, x_max, y_min, y_max] = get_axes_limits(clothoidal_paths);
     axes = gca;
     axes.XLim = [x_min, x_max];

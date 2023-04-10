@@ -41,10 +41,8 @@ function clothoid_path = generate_clothoid_path(start_point, start_yaw, goal_poi
         A = solve_g_for_root(phi1, phi2, delta);
 
         L = compute_path_length(r, phi1, delta, A);
-%         curvature = compute_curvature(delta, A, L);
-%         curvature_rate = compute_curvature_rate(A, L);
-        curvature = 0.064;
-        curvature_rate = -0.0055;
+        curvature = compute_curvature(delta, A, L);
+        curvature_rate = compute_curvature_rate(A, L);
     catch exception
         fprintf('Failed to generate clothoid points: %s\n', exception.message);
         clothoid_path = [];
@@ -99,18 +97,13 @@ end
 function draw_clothoids(start, goal, num_steps, clothoidal_paths, save_animation)
     figure('Position', [0, 0, 400, 400]);
 
-    plot(start(1), start(2), 'ro');
-    plot(goal(1), goal(2), 'ro');
-
-    lines = gobjects(1, numel(clothoidal_paths));
+    plot(start(1), start(2), 'ro'); hold on;
+    plot(goal(1), goal(2), 'ro'); hold on;
 
     for i = 1:num_steps
-       
-            clothoid_path = clothoidal_paths;
-            x = clothoid_path(1:i, 1);
-            y = clothoid_path(1:i, 2);
-%             clearpoints(lines);
-%             addpoints(lines, x, y);
+        clothoid_path = clothoidal_paths;
+        x = clothoid_path(1:i, 1);
+        y = clothoid_path(1:i, 2);
         plot(x, y, 'b'); hold on
         pause(0.025);
     end
