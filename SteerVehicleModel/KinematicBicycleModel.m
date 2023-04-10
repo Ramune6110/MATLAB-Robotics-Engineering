@@ -18,8 +18,8 @@ function [] = KinematicBicycleModel()
     beta = [];
     time = [];
     t = 0.0;
-    dt = 0.1;  % 仮定：dtが定義されているところが見つからなかったため
-    L = 2.9;   % 仮定：Lが定義されているところが見つからなかったため
+    dt = 0.1;  
+    L = 2.9;   
     Lr = L / 2;
 
     for i = 1:T
@@ -33,20 +33,10 @@ function [] = KinematicBicycleModel()
         time = [time, t];
     end
 
-    fig = figure(1);
-    fig.Position = [0 0 1368 700];
-    subplot(211)
+    figure;
     plot(x, y);
     xlabel("x[m]");
     ylabel("y[m]");
-    axis("equal");
-    grid on;
-    
-    subplot(212)
-    plot(time, delta);
-    xlabel("Time[s]");
-    ylabel("delta[rad]");
-    ylim([0, 0.03])
     axis("equal");
     grid on;
 end

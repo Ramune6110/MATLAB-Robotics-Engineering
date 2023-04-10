@@ -15,8 +15,8 @@ function [] = UnicycleModel()
     y = [];
     yaw = [];
     v = [];
-    dt = 0.1;  % 仮定：dtが定義されているところが見つからなかったため
-    L = 2.9;   % 仮定：Lが定義されているところが見つからなかったため
+    dt = 0.1;  
+    L = 2.9;   
 
     for i = 1:T
         state = update_unicycle(state, a(i), delta(i), L, dt);
